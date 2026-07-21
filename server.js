@@ -2,16 +2,24 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.resolve(__dirname, 'data');
+const DATA_DIR = process.env.WULIAO_DATA_DIR || path.resolve(__dirname, 'data');
 console.log('Data directory:', DATA_DIR);
 if (!fs.existsSync(DATA_DIR)) {
   console.log('Creating data directory');
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+const BACKUP_DIR = path.resolve(__dirname, 'backup_data');
+console.log('Backup directory:', BACKUP_DIR);
+if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
+
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const FRIENDS_FILE = path.join(DATA_DIR, 'friends.json');
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
+
+const USERS_BACKUP = path.join(BACKUP_DIR, 'users.json');
+const FRIENDS_BACKUP = path.join(BACKUP_DIR, 'friends.json');
+const MESSAGES_BACKUP = path.join(BACKUP_DIR, 'messages.json');
 
 console.log('Users file:', USERS_FILE);
 console.log('Messages file:', MESSAGES_FILE);
@@ -21,13 +29,32 @@ let friends = {};
 let messages = {};
 let socketMap = {};
 
-try {
-  if (fs.existsSync(USERS_FILE)) users = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-  if (fs.existsSync(FRIENDS_FILE)) friends = JSON.parse(fs.readFileSync(FRIENDS_FILE, 'utf8'));
-  if (fs.existsSync(MESSAGES_FILE)) messages = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf8'));
-} catch (e) {}
+function loadWithBackup(mainPath, backupPath) {
+  if (fs.existsSync(mainPath)) {
+    try {
+      return JSON.parse(fs.readFileSync(mainPath, 'utf8'));
+    } catch (e) {
+      console.warn('Failed to load from main, trying backup:', mainPath);
+    }
+  }
+  if (fs.existsSync(backupPath)) {
+    try {
+      return JSON.parse(fs.readFileSync(backupPath, 'utf8'));
+    } catch (e) {
+      console.warn('Failed to load from backup:', backupPath);
+    }
+  }
+  return null;
+}
+
+users = loadWithBackup(USERS_FILE, USERS_BACKUP) || [];
+friends = loadWithBackup(FRIENDS_FILE, FRIENDS_BACKUP) || {};
+messages = loadWithBackup(MESSAGES_FILE, MESSAGES_BACKUP) || {};
+
+console.log('Loaded:', users.length, 'users,', Object.keys(friends).length, 'friend records,', Object.keys(messages).length, 'message keys');
 
 if (users.length === 0) {
+  console.log('No users found, creating default data');
   users = [
     { username: 'alice', password: '1234', nickname: 'Alice', avatar: 2, bio: 'hello', createdAt: Date.now() },
     { username: 'bob', password: '1234', nickname: 'Bob', avatar: 4, bio: 'hi', createdAt: Date.now() },
@@ -42,9 +69,13 @@ if (users.length === 0) {
 function saveData() {
   try {
     if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
     fs.writeFileSync(FRIENDS_FILE, JSON.stringify(friends, null, 2));
     fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2));
+    fs.writeFileSync(USERS_BACKUP, JSON.stringify(users, null, 2));
+    fs.writeFileSync(FRIENDS_BACKUP, JSON.stringify(friends, null, 2));
+    fs.writeFileSync(MESSAGES_BACKUP, JSON.stringify(messages, null, 2));
     console.log('Data saved successfully:', Object.keys(messages).length, 'message keys');
   } catch (e) {
     console.error('Save data error:', e.message);

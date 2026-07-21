@@ -1244,6 +1244,7 @@ $('add-friend-confirm').onclick=async()=>{
   $('add-friend-modal').classList.remove('show');
   toast('已添加 '+r.target.nickname+' 为好友');
   renderAll();
+  setTimeout(()=>openChat(target),500);
 };
 
 /* ============ 用户列表 ============ */
@@ -1298,6 +1299,10 @@ function addFriendFromList(username){
       toast('已添加 '+r.target.nickname+' 为好友');
       renderUsersList();
       renderAll();
+      setTimeout(()=>{
+        $('users-view').classList.remove('show');
+        openChat(username);
+      },500);
     }else{
       toast(r.msg);
     }

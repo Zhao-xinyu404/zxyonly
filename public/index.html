@@ -868,7 +868,7 @@
       <div class="modal-header">添加朋友</div>
       <div class="modal-body">
         <input type="text" id="friend-username" placeholder="输入对方用户名" autocomplete="off">
-        <div class="hint" id="add-friend-hint">输入对方的用户名即可发送好友请求（Demo：将直接添加）。</div>
+        <div class="hint" id="add-friend-hint">输入对方的用户名即可添加好友。</div>
       </div>
       <div class="modal-footer">
         <button id="add-friend-cancel">取消</button>
@@ -1244,6 +1244,7 @@ $('add-friend-confirm').onclick=async()=>{
   $('add-friend-modal').classList.remove('show');
   toast('已添加 '+r.target.nickname+' 为好友');
   renderAll();
+  setTimeout(()=>openChat(target),500);
 };
 
 /* ============ 用户列表 ============ */
@@ -1298,6 +1299,10 @@ function addFriendFromList(username){
       toast('已添加 '+r.target.nickname+' 为好友');
       renderUsersList();
       renderAll();
+      setTimeout(()=>{
+        $('users-view').classList.remove('show');
+        openChat(username);
+      },500);
     }else{
       toast(r.msg);
     }
