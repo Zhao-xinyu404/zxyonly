@@ -29,12 +29,14 @@ function findWritableDir() {
 
 const DATA_DIR = findWritableDir();
 
+let USERS_DIR, FRIENDS_DIR, MESSAGES_DIR;
+
 if (DATA_DIR) {
   console.log('[INFO] Data directory:', DATA_DIR);
   
-  const USERS_DIR = path.join(DATA_DIR, 'users');
-  const FRIENDS_DIR = path.join(DATA_DIR, 'friends');
-  const MESSAGES_DIR = path.join(DATA_DIR, 'messages');
+  USERS_DIR = path.join(DATA_DIR, 'users');
+  FRIENDS_DIR = path.join(DATA_DIR, 'friends');
+  MESSAGES_DIR = path.join(DATA_DIR, 'messages');
 
   function ensureDir(dir) {
     if (!fs.existsSync(dir)) {
@@ -66,6 +68,13 @@ if (DATA_DIR) {
   }
 } else {
   console.warn('[WARN] Using memory-only storage, data will be lost on restart');
+  
+  function userFile(username) { return path.join('users', username + '.json'); }
+  function friendsFile(username) { return path.join('friends', username + '.json'); }
+  function messagesFile(a, b) {
+    const key = [a, b].sort().join('__');
+    return path.join('messages', key + '.json');
+  }
 }
 
 let users = [];
@@ -206,6 +215,10 @@ function addMsg(from, to, content) {
   let result = false;
   if (DATA_DIR) {
     result = writeJSON(file, msgs);
+    if (!result) {
+      console.error('[ERROR] Failed to save message to file:', file);
+      return null;
+    }
   } else {
     const key = [from, to].sort().join('__');
     messages[key] = msgs;
@@ -333,6 +346,7 @@ const server = http.createServer(async (req, res) => {
     if (!getUser(from) || !getUser(to)) return send(res, 200, { success: false, msg: '用户不存在' });
     if (!getFriends(from).includes(to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
     const msg = addMsg(from, to, content);
+    if (!msg) return send(res, 200, { success: false, msg: '消息发送失败，请重试' });
     return send(res, 200, { success: true, message: msg });
   }
 

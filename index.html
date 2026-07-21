@@ -1511,12 +1511,23 @@ function sendMessage(){
   const input=$('chat-input');
   const text=input.value.trim();
   if(!text) return;
+  const btn=$('btn-send');
+  btn.disabled=true;
+  btn.textContent='发送中...';
   api('/api/messages/send',{from:currentUser.username,to:currentChatTarget,content:text},'POST').then(res=>{
+    btn.disabled=false;
+    btn.textContent='发送';
     if(res.success){
       input.value='';
       autoResize(input);
       setTimeout(()=>{renderChatMessages();renderChatList();},200);
+    }else{
+      toast(res.msg||'发送失败');
     }
+  }).catch(()=>{
+    btn.disabled=false;
+    btn.textContent='发送';
+    toast('网络错误，发送失败');
   });
 }
 
