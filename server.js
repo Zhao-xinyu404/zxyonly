@@ -34,10 +34,14 @@ if (users.length === 0) {
 
 function saveData() {
   try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
     fs.writeFileSync(FRIENDS_FILE, JSON.stringify(friends, null, 2));
     fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2));
-  } catch (e) {}
+    console.log('Data saved successfully:', Object.keys(messages).length, 'message keys');
+  } catch (e) {
+    console.error('Save data error:', e.message);
+  }
 }
 
 function getUser(username) { return users.find(u => u.username === username); }
@@ -156,6 +160,10 @@ const server = http.createServer(async (req, res) => {
     if (!getUser(from) || !getUser(to)) return send(res, 200, { success: false, msg: '用户不存在' });
     if (!getFriends(from).includes(to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
     const msg = addMsg(from, to, content);
+    console.log('Message sent:', from, '->', to, content.length, 'chars');
+    console.log('Messages in memory:', Object.keys(messages).length, 'keys');
+    const checkKey = [from, to].sort().join('__');
+    console.log('Specific key messages:', messages[checkKey]?.length || 0);
     return send(res, 200, { success: true, message: msg });
   }
 
