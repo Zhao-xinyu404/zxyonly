@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>微聊 WeiChat Lite</title>
+<title>无聊 Chat</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <style>
   :root{
     --brand:#07c160;
@@ -50,27 +51,21 @@
     box-shadow:0 30px 80px rgba(0,0,0,0.25), 0 0 0 8px #1a1a1a, 0 0 0 10px #2a2a2a;
     border-radius:42px;
   }
+  /* 桌面端：当窗口高度不足以容纳手机外框时，去掉外壳限制，让内容撑满并保证底部 Tab 可见 */
+  @media(min-width:481px) and (max-height:960px){
+    .phone{
+      max-height:100vh;
+      border-radius:0;
+      box-shadow:none;
+    }
+    body{background:var(--bg);align-items:stretch;}
+  }
   @media(max-width:480px){
     body{background:var(--bg);}
     .phone{box-shadow:none;border-radius:0;max-width:100%;max-height:100vh;}
   }
   /* 滚动条隐藏 */
   .phone ::-webkit-scrollbar{width:0;display:none;}
-
-  /* ===== 通用顶部状态栏 ===== */
-  .status-bar{
-    height:24px;
-    background:inherit;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:0 18px;
-    font-size:12px;
-    font-weight:600;
-    color:var(--text);
-    flex-shrink:0;
-  }
-  .status-bar .right{display:flex;gap:6px;align-items:center;font-size:11px;}
 
   /* ===== 登录/注册页 ===== */
   #auth-view{
@@ -283,7 +278,7 @@
     margin-top:4px;
   }
 
-  /* 微信 Tab */
+  /* 无聊 Tab */
   .chat-search{
     padding:8px 12px;
     background:#ededed;
@@ -568,22 +563,12 @@
 
 <div class="phone">
 
-  <!-- ============ 状态栏 ============ -->
-  <div class="status-bar" id="status-bar">
-    <span class="time">9:41</span>
-    <span class="right">
-      <i class="fas fa-signal"></i>
-      <i class="fas fa-wifi"></i>
-      <i class="fas fa-battery-full"></i>
-    </span>
-  </div>
-
   <!-- ============ 登录/注册 ============ -->
   <div id="auth-view">
     <div class="auth-header">
       <div class="auth-logo"><i class="fas fa-comment-dots"></i></div>
-      <h1>微聊</h1>
-      <p>WeiChat Lite · 即时通讯 简化版</p>
+      <h1>无聊</h1>
+      <p>无聊 · 即时通讯 简化版</p>
     </div>
 
     <div class="auth-form">
@@ -640,7 +625,7 @@
       </div>
 
       <div class="auth-tip">
-        <strong>提示：</strong>这是一个纯前端 Demo，所有数据保存在浏览器本地（localStorage）。可注册多个账号互相加好友聊天（同一浏览器内）。
+        <strong>提示：</strong>这是实时聊天应用，数据存储在服务端，注册后可与其他人互加好友实时聊天。
       </div>
     </div>
   </div>
@@ -651,13 +636,13 @@
     <!-- 顶部导航 -->
     <div class="nav-header">
       <button class="icon-btn" id="header-left"><i class="fas fa-plus"></i></button>
-      <h2 id="nav-title">微信</h2>
+      <h2 id="nav-title">无聊</h2>
       <button class="icon-btn" id="header-right"><i class="fas fa-search"></i></button>
     </div>
 
     <div class="tab-panels">
 
-      <!-- ===== 微信 Tab ===== -->
+      <!-- ===== 无聊 Tab ===== -->
       <div class="tab-panel active" id="tab-chat">
         <div class="chat-search">
           <div class="box"><i class="fas fa-search"></i> 搜索</div>
@@ -778,7 +763,7 @@
     <!-- 底部 Tab Bar -->
     <div class="tab-bar">
       <div class="tab active" data-tab="chat">
-        <i class="fas fa-comments"></i><span>微信</span>
+        <i class="fas fa-comments"></i><span>无聊</span>
       </div>
       <div class="tab" data-tab="contacts">
         <i class="fas fa-address-book"></i><span>通讯录</span>
@@ -814,7 +799,7 @@
       <div class="modal-header">添加朋友</div>
       <div class="modal-body">
         <input type="text" id="friend-username" placeholder="输入对方用户名" autocomplete="off">
-        <div class="hint" id="add-friend-hint">输入对方的用户名即可发送好友请求（Demo：将直接添加）。</div>
+        <div class="hint" id="add-friend-hint">输入对方的用户名即可添加好友。</div>
       </div>
       <div class="modal-footer">
         <button id="add-friend-cancel">取消</button>
@@ -843,71 +828,24 @@
 </div>
 
 <script>
-/* ============ 数据层 ============ */
-const Store = {
-  USERS_KEY:'weichat_users',
-  SESSION_KEY:'weichat_session',
-  usersKey(){return this.USERS_KEY;},
-  getUsers(){
-    try{return JSON.parse(localStorage.getItem(this.USERS_KEY))||[];}catch(e){return [];}
-  },
-  saveUsers(arr){localStorage.setItem(this.USERS_KEY,JSON.stringify(arr));},
-  findUser(username){return this.getUsers().find(u=>u.username===username);},
-  addUser(user){
-    const arr=this.getUsers();
-    arr.push(user);this.saveUsers(arr);
-  },
-  updateUser(username,patch){
-    const arr=this.getUsers();
-    const i=arr.findIndex(u=>u.username===username);
-    if(i>=0){arr[i]={...arr[i],...patch};this.saveUsers(arr);return arr[i];}
-    return null;
-  },
-  setSession(username){localStorage.setItem(this.SESSION_KEY,username);},
-  getSession(){return localStorage.getItem(this.SESSION_KEY);},
-  clearSession(){localStorage.removeItem(this.SESSION_KEY);},
-  friendsKey(u){return 'weichat_friends_'+u;},
-  getFriends(u){
-    try{return JSON.parse(localStorage.getItem(this.friendsKey(u)))||[];}catch(e){return [];}
-  },
-  saveFriends(u,arr){localStorage.setItem(this.friendsKey(u),JSON.stringify(arr));},
-  addFriend(a,b){
-    // 双向添加
-    const fa=this.getFriends(a);
-    if(!fa.includes(b)){fa.push(b);this.saveFriends(a,fa);}
-    const fb=this.getFriends(b);
-    if(!fb.includes(a)){fb.push(a);this.saveFriends(b,fb);}
-  },
-  isFriend(a,b){return this.getFriends(a).includes(b);},
-  msgKey(a,b){
-    // 按字典序
-    return [a,b].sort().join('__');
-  },
-  getMsgs(a,b){
-    try{return JSON.parse(localStorage.getItem('weichat_msgs_'+this.msgKey(a,b)))||[];}catch(e){return [];}
-  },
-  saveMsgs(a,b,arr){localStorage.setItem('weichat_msgs_'+this.msgKey(a,b),JSON.stringify(arr));},
-  addMsg(from,to,content){
-    const arr=this.getMsgs(from,to);
-    arr.push({from,to,content,time:Date.now()});
-    this.saveMsgs(from,to,arr);
-  },
-  unreadKey(u){return 'weichat_unread_'+u;},
-  getUnread(u){
-    try{return JSON.parse(localStorage.getItem(this.unreadKey(u)))||{};}catch(e){return {};}
-  },
-  saveUnread(u,obj){localStorage.setItem(this.unreadKey(u),JSON.stringify(obj));},
-  addUnread(u,from){
-    const o=this.getUnread(u);
-    o[from]=(o[from]||0)+1;
-    this.saveUnread(u,o);
-  },
-  clearUnread(u,from){
-    const o=this.getUnread(u);
-    delete o[from];
-    this.saveUnread(u,o);
+/* ============ 后端地址配置 ============ */
+// 部署到 GitHub Pages 时，把这里改成你服务器的后端地址
+// 例如：const API_BASE='https://your-server.com';
+// 本地开发时留空，表示用当前域名
+const API_BASE = 'https://wuliao-chat.onrender.com';
+
+/* ============ API 调用 ============ */
+async function api(url, data, method='POST'){
+  const fullUrl = API_BASE + url;
+  const opts = {method, headers:{'Content-Type':'application/json'}};
+  if(data) opts.body = JSON.stringify(data);
+  try{
+    const res = await fetch(fullUrl, opts);
+    return await res.json();
+  }catch(e){
+    return {success:false, msg:'网络错误，请检查后端服务是否启动'};
   }
-};
+}
 
 /* ============ 头像渲染 ============ */
 const AV_ICONS={1:'cat',2:'dog',3:'fish',4:'dragon',5:'otter',6:'kiwi-bird',7:'horse',8:'paw'};
@@ -953,14 +891,16 @@ $('confirm-ok').onclick=()=>{
 /* ============ 当前会话状态 ============ */
 let currentUser=null;
 let currentChatTarget=null;
-let chatRefreshTimer=null;
+let socket=null;
+let unreadMap={};  // 未读消息计数（内存）
 
 /* ============ 认证 ============ */
-function refreshAuth(){
-  const u=Store.getSession();
+async function refreshAuth(){
+  const u=localStorage.getItem('wuliao_session');
   if(u){
-    currentUser=Store.findUser(u);
-    if(currentUser){
+    const r=await api(`/api/user/${u}`,'','GET');
+    if(r.success){
+      currentUser=r.user;
       enterMain();
       return;
     }
@@ -994,41 +934,39 @@ document.querySelectorAll('#avatar-pick .av').forEach(el=>{
   };
 });
 
-$('btn-login').onclick=()=>{
+$('btn-login').onclick=async()=>{
   const username=$('login-username').value.trim();
   const password=$('login-password').value;
   if(!username||!password){$('login-error').textContent='请输入用户名和密码';return;}
-  const u=Store.findUser(username);
-  if(!u||u.password!==password){
-    $('login-error').textContent='用户名或密码错误';
+  const r=await api('/api/login',{username,password});
+  if(!r.success){
+    $('login-error').textContent=r.msg;
     return;
   }
   $('login-error').textContent='';
-  Store.setSession(username);
-  currentUser=u;
+  localStorage.setItem('wuliao_session',r.user.username);
+  currentUser=r.user;
   enterMain();
   toast('登录成功，欢迎回来！');
 };
 
-$('btn-register').onclick=()=>{
+$('btn-register').onclick=async()=>{
   const username=$('reg-username').value.trim();
   const password=$('reg-password').value;
   const nickname=$('reg-nickname').value.trim();
   if(!username||!password||!nickname){
     $('reg-error').textContent='请填写完整信息';return;
   }
-  if(username.length<3){$('reg-error').textContent='用户名至少3个字符';return;}
-  if(password.length<4){$('reg-error').textContent='密码至少4位';return;}
-  if(Store.findUser(username)){
-    $('reg-error').textContent='该用户名已被注册';return;
+  const r=await api('/api/register',{username,password,nickname,avatar:selectedAvatar});
+  if(!r.success){
+    $('reg-error').textContent=r.msg;
+    return;
   }
-  const newUser={username,password,nickname,avatar:selectedAvatar,bio:'',createdAt:Date.now()};
-  Store.addUser(newUser);
-  Store.setSession(username);
-  currentUser=newUser;
   $('reg-error').textContent='';
+  localStorage.setItem('wuliao_session',r.user.username);
+  currentUser=r.user;
   enterMain();
-  toast('注册成功，欢迎加入微聊！');
+  toast('注册成功，欢迎加入无聊！');
 };
 
 function enterMain(){
@@ -1036,25 +974,40 @@ function enterMain(){
   $('main-view').classList.add('show');
   $('chat-detail-view').classList.remove('show');
   switchTab('chat');
+  startPolling();
   renderAll();
-  // 启动定时刷新（接收新消息）
-  if(chatRefreshTimer) clearInterval(chatRefreshTimer);
-  chatRefreshTimer=setInterval(()=>{
-    if(currentUser && !$('chat-detail-view').classList.contains('show')){
-      renderChatList();
-    } else if(currentUser && currentChatTarget){
-      renderChatMessages();
+}
+
+/* ============ 轮询获取新消息 ============ */
+let pollTimer=null;
+function startPolling(){
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer=setInterval(()=>{
+    if(currentUser&&currentChatTarget){
+      api(`/api/messages/${currentUser.username}/${currentChatTarget}`,'','GET').then(res=>{
+        if(res.success) renderChatMessages();
+      });
+    }
+    if(currentUser){
+      api(`/api/friends/${currentUser.username}`,'','GET').then(res=>{
+        if(res.success) renderChatList();
+      });
     }
   },2000);
+}
+function stopPolling(){
+  if(pollTimer){
+    clearInterval(pollTimer);
+    pollTimer=null;
+  }
 }
 
 $('btn-logout').onclick=()=>{
   showConfirm('确定退出登录吗？',()=>{
-    Store.clearSession();
+    stopPolling();
+    localStorage.removeItem('wuliao_session');
     currentUser=null;
     currentChatTarget=null;
-    if(chatRefreshTimer){clearInterval(chatRefreshTimer);chatRefreshTimer=null;}
-    // 清空输入
     $('login-username').value='';
     $('login-password').value='';
     showAuth();
@@ -1063,12 +1016,11 @@ $('btn-logout').onclick=()=>{
 };
 
 /* ============ Tab 切换 ============ */
-const TAB_TITLES={chat:'微信',contacts:'通讯录',discover:'发现',profile:'我'};
+const TAB_TITLES={chat:'无聊',contacts:'通讯录',discover:'发现',profile:'我'};
 function switchTab(name){
   document.querySelectorAll('.tab-bar .tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
   $('nav-title').textContent=TAB_TITLES[name];
-  // header 左右按钮
   if(name==='chat'){
     $('header-left').innerHTML='<i class="fas fa-plus"></i>';
     $('header-left').onclick=()=>openAddFriend();
@@ -1094,9 +1046,11 @@ document.querySelectorAll('.tab-bar .tab').forEach(t=>{
 });
 
 /* ============ 渲染：聊天列表 ============ */
-function renderChatList(){
+async function renderChatList(){
+  if(!currentUser) return;
   const list=$('chat-list');
-  const friends=Store.getFriends(currentUser.username);
+  const r=await api(`/api/friends/${currentUser.username}`,'','GET');
+  const friends=r.success?r.friends:[];
   if(friends.length===0){
     list.innerHTML=`<div class="empty-state">
       <i class="fas fa-comments"></i>
@@ -1104,20 +1058,19 @@ function renderChatList(){
     </div>`;
     return;
   }
-  // 构建会话列表
-  const sessions=friends.map(f=>{
-    const msgs=Store.getMsgs(currentUser.username,f);
+  const sessions=await Promise.all(friends.map(async f=>{
+    const mr=await api(`/api/messages/${currentUser.username}/${f.username}`,'','GET');
+    const msgs=mr.success?mr.messages:[];
     const last=msgs[msgs.length-1];
-    const unread=Store.getUnread(currentUser.username)[f]||0;
     return {
-      username:f,
-      user:Store.findUser(f),
+      username:f.username,
+      user:f,
       lastMsg:last?last.content:'',
       lastTime:last?last.time:0,
-      unread
+      unread:unreadMap[f.username]||0
     };
-  }).sort((a,b)=>b.lastTime-a.lastTime);
-
+  }));
+  sessions.sort((a,b)=>b.lastTime-a.lastTime);
   list.innerHTML=sessions.map(s=>{
     if(!s.user) return '';
     const timeStr=s.lastTime?formatChatTime(s.lastTime):'';
@@ -1151,9 +1104,11 @@ function formatChatTime(t){
 }
 
 /* ============ 渲染：通讯录 ============ */
-function renderContacts(){
+async function renderContacts(){
+  if(!currentUser) return;
   const list=$('contacts-list');
-  const friends=Store.getFriends(currentUser.username);
+  const r=await api(`/api/friends/${currentUser.username}`,'','GET');
+  const friends=r.success?r.friends:[];
   $('contacts-count').textContent='好友 ('+friends.length+')';
   if(friends.length===0){
     list.innerHTML=`<div class="empty-state">
@@ -1162,16 +1117,11 @@ function renderContacts(){
     </div>`;
     return;
   }
-  const sorted=[...friends].sort((a,b)=>{
-    const ua=Store.findUser(a),ub=Store.findUser(b);
-    return (ua?.nickname||'').localeCompare(ub?.nickname||'');
-  });
-  list.innerHTML=sorted.map(f=>{
-    const u=Store.findUser(f);
-    if(!u) return '';
-    return `<div class="list-row" data-friend="${f}">
-      ${userAvatarHTML(u,u.nickname)}
-      <div class="info"><div class="name">${escapeHTML(u.nickname)}</div></div>
+  friends.sort((a,b)=>a.nickname.localeCompare(b.nickname));
+  list.innerHTML=friends.map(f=>{
+    return `<div class="list-row" data-friend="${f.username}">
+      ${userAvatarHTML(f,f.nickname)}
+      <div class="info"><div class="name">${escapeHTML(f.nickname)}</div></div>
     </div>`;
   }).join('');
   list.querySelectorAll('.list-row').forEach(row=>{
@@ -1187,12 +1137,12 @@ function renderProfile(){
   av.className='avatar av-'+(u.avatar||1);
   av.innerHTML=`<i class="fas fa-${AV_ICONS[u.avatar]||'paw'}"></i>`;
   $('profile-nickname').textContent=u.nickname;
-  $('profile-username').textContent='微信号：'+u.username;
+  $('profile-username').textContent='无聊号：'+u.username;
   $('profile-bio').textContent=u.bio||'点击设置个性签名...';
   $('profile-bio').onclick=()=>{
     const bio=prompt('设置个性签名：',u.bio||'');
     if(bio!==null){
-      currentUser=Store.updateUser(u.username,{bio:bio.trim()});
+      currentUser.bio=bio.trim();
       renderProfile();
       toast('已更新');
     }
@@ -1202,64 +1152,58 @@ function renderProfile(){
 /* ============ 添加好友 ============ */
 function openAddFriend(){
   $('friend-username').value='';
-  $('add-friend-hint').textContent='输入对方的用户名即可发送好友请求（Demo：将直接添加）。';
+  $('add-friend-hint').textContent='输入对方的用户名即可添加好友。';
   $('add-friend-hint').style.color='';
   $('add-friend-modal').classList.add('show');
   setTimeout(()=>$('friend-username').focus(),100);
 }
 $('add-friend-card').onclick=openAddFriend;
 $('add-friend-cancel').onclick=()=>$('add-friend-modal').classList.remove('show');
-$('add-friend-confirm').onclick=()=>{
+$('add-friend-confirm').onclick=async()=>{
   const target=$('friend-username').value.trim();
   if(!target){$('add-friend-hint').textContent='请输入用户名';$('add-friend-hint').style.color='var(--danger)';return;}
   if(target===currentUser.username){
     $('add-friend-hint').textContent='不能添加自己为好友';$('add-friend-hint').style.color='var(--danger)';
     return;
   }
-  const tu=Store.findUser(target);
-  if(!tu){
-    $('add-friend-hint').textContent='用户不存在';$('add-friend-hint').style.color='var(--danger)';
+  const r=await api('/api/add-friend',{from:currentUser.username,to:target});
+  if(!r.success){
+    $('add-friend-hint').textContent=r.msg;
+    $('add-friend-hint').style.color='var(--danger)';
     return;
   }
-  if(Store.isFriend(currentUser.username,target)){
-    $('add-friend-hint').textContent='你们已经是好友了';$('add-friend-hint').style.color='var(--danger)';
-    return;
-  }
-  Store.addFriend(currentUser.username,target);
   $('add-friend-modal').classList.remove('show');
-  toast('已添加 '+tu.nickname+' 为好友');
+  toast('已添加 '+r.target.nickname+' 为好友');
   renderAll();
 };
 
 /* ============ 聊天详情 ============ */
-function openChat(friendUsername){
-  const u=Store.findUser(friendUsername);
-  if(!u){toast('用户不存在');return;}
+async function openChat(friendUsername){
+  const r=await api(`/api/user/${friendUsername}`,'','GET');
+  if(!r.success){toast('用户不存在');return;}
   currentChatTarget=friendUsername;
-  $('chat-target-name').textContent=u.nickname;
+  $('chat-target-name').textContent=r.user.nickname;
   $('chat-detail-view').classList.add('show');
   $('chat-input').value='';
   autoResize($('chat-input'));
-  // 清未读
-  Store.clearUnread(currentUser.username,friendUsername);
+  delete unreadMap[friendUsername];
   renderChatMessages();
   renderChatList();
-  renderContacts();
 }
 $('chat-back').onclick=()=>{
   $('chat-detail-view').classList.remove('show');
   currentChatTarget=null;
   renderChatList();
-  renderContacts();
 };
 
-function renderChatMessages(){
+async function renderChatMessages(){
   if(!currentChatTarget||!currentUser) return;
-  const msgs=Store.getMsgs(currentUser.username,currentChatTarget);
+  const r=await api(`/api/messages/${currentUser.username}/${currentChatTarget}`,'','GET');
+  const msgs=r.success?r.messages:[];
   const box=$('chat-messages');
-  const targetUser=Store.findUser(currentChatTarget);
+  const tr=await api(`/api/user/${currentChatTarget}`,'','GET');
+  const targetUser=tr.success?tr.user:null;
   if(!targetUser) return;
-
   let html='';
   let lastDate=null;
   msgs.forEach(m=>{
@@ -1270,7 +1214,7 @@ function renderChatMessages(){
       lastDate=dateKey;
     }
     const isSelf=m.from===currentUser.username;
-    const senderUser=Store.findUser(m.from);
+    const senderUser=isSelf?currentUser:targetUser;
     html+=`<div class="msg ${isSelf?'self':'other'}">
       ${userAvatarHTML(senderUser,senderUser?.nickname)}
       <div class="bubble">${escapeHTML(m.content)}</div>
@@ -1281,9 +1225,6 @@ function renderChatMessages(){
   }
   box.innerHTML=html;
   box.scrollTop=box.scrollHeight;
-
-  // 进入聊天时检测对方是否有新消息发来（"接收"）
-  // 这里 demo 简化：如果对方有未读，清掉（已经清了）
 }
 
 function autoResize(el){
@@ -1304,14 +1245,13 @@ function sendMessage(){
   const input=$('chat-input');
   const text=input.value.trim();
   if(!text) return;
-  Store.addMsg(currentUser.username,currentChatTarget,text);
-  // 如果对方当前没在和我们聊，给对方加未读
-  // （demo：始终加，因为无法知道对方在线状态）
-  Store.addUnread(currentChatTarget,currentUser.username);
-  input.value='';
-  autoResize(input);
-  renderChatMessages();
-  renderChatList();
+  api('/api/messages/send',{from:currentUser.username,to:currentChatTarget,content:text},'POST').then(res=>{
+    if(res.success){
+      input.value='';
+      autoResize(input);
+      setTimeout(()=>{renderChatMessages();renderChatList();},200);
+    }
+  });
 }
 
 /* ============ 工具 ============ */
@@ -1325,28 +1265,8 @@ function renderAll(){
   renderProfile();
 }
 
-/* ============ 状态栏时间 ============ */
-function updateStatusBarTime(){
-  const d=new Date();
-  const h=d.getHours().toString().padStart(2,'0');
-  const m=d.getMinutes().toString().padStart(2,'0');
-  document.querySelector('.status-bar .time').textContent=h+':'+m;
-}
-setInterval(updateStatusBarTime,10000);
-updateStatusBarTime();
-
 /* ============ 初始化 ============ */
 refreshAuth();
-
-// 演示：如果没有任何用户，预置几个
-(function seedDemo(){
-  const users=Store.getUsers();
-  if(users.length===0){
-    Store.addUser({username:'alice',password:'1234',nickname:'Alice',avatar:2,bio:'爱丽丝的奇幻世界',createdAt:Date.now()});
-    Store.addUser({username:'bob',password:'1234',nickname:'Bob',avatar:4,bio:'今天也是元气满满',createdAt:Date.now()});
-    Store.addUser({username:'charlie',password:'1234',nickname:'Charlie',avatar:5,bio:'咖啡 · 代码 · 生活',createdAt:Date.now()});
-  }
-})();
 </script>
 </body>
 </html>
