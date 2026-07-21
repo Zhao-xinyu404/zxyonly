@@ -395,6 +395,79 @@
     display:flex;
     transform:translateX(0);
   }
+
+  /* ===== 公众号详情页 ===== */
+  #official-account-view{
+    position:absolute;
+    inset:0;
+    background:var(--bg);
+    display:none;
+    flex-direction:column;
+    z-index:50;
+    transform:translateX(100%);
+    transition:transform .28s cubic-bezier(.2,.8,.2,1);
+  }
+  #official-account-view.show{
+    display:flex;
+    transform:translateX(0);
+  }
+  .oa-content{
+    flex:1;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .oa-header{
+    background:#fff;
+    padding:24px 16px;
+    text-align:center;
+    border-bottom:1px solid var(--line);
+  }
+  .oa-header .oa-avatar{
+    width:72px;height:72px;
+    border-radius:14px;
+    margin:0 auto 12px;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:32px;
+  }
+  .oa-header .oa-title{
+    font-size:20px;font-weight:600;color:var(--text);
+  }
+  .oa-header .oa-desc{
+    font-size:13px;color:var(--text-2);margin-top:6px;
+  }
+  .oa-header .oa-btn{
+    display:inline-block;
+    margin-top:14px;
+    padding:8px 28px;
+    background:var(--brand);
+    color:#fff;
+    border:none;
+    border-radius:6px;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .oa-header .oa-btn.added{
+    background:#f0f0f0;color:var(--text-2);
+  }
+  .oa-articles{
+    margin-top:8px;
+  }
+  .oa-article{
+    background:#fff;
+    margin:8px 12px;
+    padding:14px;
+    border-radius:8px;
+  }
+  .oa-article .art-title{
+    font-size:16px;font-weight:500;color:var(--text);
+    margin-bottom:6px;
+  }
+  .oa-article .art-excerpt{
+    font-size:13px;color:var(--text-2);line-height:1.6;
+  }
+  .oa-article .art-meta{
+    font-size:11px;color:var(--text-3);margin-top:8px;
+  }
   .chat-detail-header{
     flex-shrink:0;
     background:#ededed;
@@ -583,9 +656,8 @@
       <!-- 登录表单 -->
       <div id="login-form">
         <div class="field has-icon">
-          <input type="text" id="login-username" placeholder=" " autocomplete="off">
-          <i class="icon fas fa-user"></i>
-          <label>用户名</label>
+          <input type="text" id="login-username" placeholder=" " autocomplete="off">          <i class="icon fas fa-user"></i>
+          <label>无聊号</label>
         </div>
         <div class="field has-icon">
           <input type="password" id="login-password" placeholder=" " autocomplete="off">
@@ -602,7 +674,7 @@
         <div class="field has-icon">
           <input type="text" id="reg-username" placeholder=" " autocomplete="off">
           <i class="icon fas fa-user"></i>
-          <label>用户名（用于登录/加好友）</label>
+          <label>无聊号（用于登录/加好友）</label>
         </div>
         <div class="field has-icon">
           <input type="password" id="reg-password" placeholder=" " autocomplete="off">
@@ -664,7 +736,7 @@
           <div class="ic"><i class="fas fa-user-plus"></i></div>
           <div style="flex:1;">
             <div style="font-size:16px;color:var(--text);">添加朋友</div>
-            <div style="font-size:12px;color:var(--text-2);margin-top:2px;">通过用户名搜索添加</div>
+            <div style="font-size:12px;color:var(--text-2);margin-top:2px;">通过无聊号搜索添加</div>
           </div>
           <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
         </div>
@@ -675,7 +747,7 @@
           </div>
           <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
         </div>
-        <div class="contacts-header-card">
+        <div class="contacts-header-card" id="official-account-card">
           <div class="ic" style="background:#3b82f6;"><i class="fas fa-female"></i></div>
           <div style="flex:1;">
             <div style="font-size:16px;color:var(--text);">公众号</div>
@@ -801,13 +873,23 @@
     </div>
   </div>
 
+  <!-- ============ 公众号详情页 ============ -->
+  <div id="official-account-view">
+    <div class="chat-detail-header">
+      <button class="icon-btn" id="oa-back"><i class="fas fa-chevron-left"></i></button>
+      <h3 id="oa-name">公众号</h3>
+      <button class="icon-btn"><i class="fas fa-ellipsis"></i></button>
+    </div>
+    <div class="oa-content" id="oa-content"></div>
+  </div>
+
   <!-- ============ 模态框：添加好友 ============ -->
   <div class="modal-mask" id="add-friend-modal">
     <div class="modal">
       <div class="modal-header">添加朋友</div>
       <div class="modal-body">
-        <input type="text" id="friend-username" placeholder="输入对方用户名" autocomplete="off">
-        <div class="hint" id="add-friend-hint">输入对方的用户名即可添加好友。</div>
+        <input type="text" id="friend-username" placeholder="输入对方无聊号" autocomplete="off">
+        <div class="hint" id="add-friend-hint">输入对方的无聊号即可添加好友。</div>
       </div>
       <div class="modal-footer">
         <button id="add-friend-cancel">取消</button>
@@ -945,7 +1027,7 @@ document.querySelectorAll('#avatar-pick .av').forEach(el=>{
 $('btn-login').onclick=async()=>{
   const username=$('login-username').value.trim();
   const password=$('login-password').value;
-  if(!username||!password){$('login-error').textContent='请输入用户名和密码';return;}
+  if(!username||!password){$('login-error').textContent='请输入无聊号和密码';return;}
   const r=await api('/api/login',{username,password});
   if(!r.success){
     $('login-error').textContent=r.msg;
@@ -1169,7 +1251,7 @@ $('add-friend-card').onclick=openAddFriend;
 $('add-friend-cancel').onclick=()=>$('add-friend-modal').classList.remove('show');
 $('add-friend-confirm').onclick=async()=>{
   const target=$('friend-username').value.trim();
-  if(!target){$('add-friend-hint').textContent='请输入用户名';$('add-friend-hint').style.color='var(--danger)';return;}
+  if(!target){$('add-friend-hint').textContent='请输入无聊号';$('add-friend-hint').style.color='var(--danger)';return;}
   if(target===currentUser.username){
     $('add-friend-hint').textContent='不能添加自己为好友';$('add-friend-hint').style.color='var(--danger)';
     return;
@@ -1185,6 +1267,75 @@ $('add-friend-confirm').onclick=async()=>{
   renderAll();
   setTimeout(()=>openChat(target),500);
 };
+
+/* ============ 公众号 ============ */
+const OFFICIAL_ACCOUNT='admin';
+const OA_ARTICLES=[
+  {
+    title:'欢迎关注无聊官方公众号',
+    excerpt:'无聊是一款简洁的即时通讯应用，支持加好友、聊天等功能。在这里你可以查看最新公告和使用指南。',
+    time:Date.now()-86400000
+  },
+  {
+    title:'如何添加好友？',
+    excerpt:'点击通讯录 → 添加朋友 → 输入对方的无聊号即可添加好友。添加成功后，好友会出现在通讯录和聊天列表中，点击即可开始聊天。',
+    time:Date.now()-172800000
+  },
+  {
+    title:'无聊使用小贴士',
+    excerpt:'1. 在"我"页面可以设置个性签名\n2. 聊天列表按最近消息时间排序\n3. 支持多设备同时登录\n4. 消息实时同步，不用担心遗漏',
+    time:Date.now()-259200000
+  }
+];
+
+async function openOfficialAccount(){
+  $('official-account-view').classList.add('show');
+  await renderOfficialAccount();
+}
+$('official-account-card').onclick=openOfficialAccount;
+$('oa-back').onclick=()=>$('official-account-view').classList.remove('show');
+
+async function renderOfficialAccount(){
+  if(!currentUser) return;
+  const r=await api(`/api/user/${OFFICIAL_ACCOUNT}`,'','GET');
+  const oa=r.success?r.user:null;
+  const fr=await api(`/api/friends/${currentUser.username}`,'','GET');
+  const friendUsernames=(fr.success?fr.friends:[]).map(f=>f.username);
+  const isFriend=oa&&friendUsernames.includes(OFFICIAL_ACCOUNT);
+  
+  $('oa-name').textContent=oa?oa.nickname:'无聊官方';
+  
+  const avatarBg='#07c160';
+  const articlesHtml=OA_ARTICLES.map(a=>{
+    return `<div class="oa-article">
+      <div class="art-title">${escapeHTML(a.title)}</div>
+      <div class="art-excerpt">${escapeHTML(a.excerpt).replace(/\n/g,'<br>')}</div>
+      <div class="art-meta">${formatChatTime(a.time)}</div>
+    </div>`;
+  }).join('');
+  
+  $('oa-content').innerHTML=`<div class="oa-header">
+    <div class="oa-avatar" style="background:${avatarBg};"><i class="fas fa-bullhorn"></i></div>
+    <div class="oa-title">${oa?escapeHTML(oa.nickname):'无聊官方'}</div>
+    <div class="oa-desc">${oa&&oa.bio?escapeHTML(oa.bio):'无聊官方公众号 · 发布最新公告和使用指南'}</div>
+    <button class="oa-btn ${isFriend?'added':''}" id="oa-follow-btn">${isFriend?'已关注':'关注公众号'}</button>
+  </div>
+  <div class="oa-articles">${articlesHtml}</div>`;
+  
+  const btn=$('oa-follow-btn');
+  if(btn&&!isFriend){
+    btn.onclick=async()=>{
+      const r=await api('/api/add-friend',{from:currentUser.username,to:OFFICIAL_ACCOUNT});
+      if(r.success){
+        toast('已关注 '+r.target.nickname);
+        renderOfficialAccount();
+        renderAll();
+      }else{
+        toast(r.msg);
+      }
+    };
+  }
+}
 
 /* ============ 聊天详情 ============ */
 async function openChat(friendUsername){
