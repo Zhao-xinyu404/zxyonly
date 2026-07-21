@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>微聊 WeiChat Lite</title>
+<title>无聊 Chat</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
   :root{
@@ -50,27 +50,21 @@
     box-shadow:0 30px 80px rgba(0,0,0,0.25), 0 0 0 8px #1a1a1a, 0 0 0 10px #2a2a2a;
     border-radius:42px;
   }
+  /* 桌面端：当窗口高度不足以容纳手机外框时，去掉外壳限制，让内容撑满并保证底部 Tab 可见 */
+  @media(min-width:481px) and (max-height:960px){
+    .phone{
+      max-height:100vh;
+      border-radius:0;
+      box-shadow:none;
+    }
+    body{background:var(--bg);align-items:stretch;}
+  }
   @media(max-width:480px){
     body{background:var(--bg);}
     .phone{box-shadow:none;border-radius:0;max-width:100%;max-height:100vh;}
   }
   /* 滚动条隐藏 */
   .phone ::-webkit-scrollbar{width:0;display:none;}
-
-  /* ===== 通用顶部状态栏 ===== */
-  .status-bar{
-    height:24px;
-    background:inherit;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    padding:0 18px;
-    font-size:12px;
-    font-weight:600;
-    color:var(--text);
-    flex-shrink:0;
-  }
-  .status-bar .right{display:flex;gap:6px;align-items:center;font-size:11px;}
 
   /* ===== 登录/注册页 ===== */
   #auth-view{
@@ -283,7 +277,7 @@
     margin-top:4px;
   }
 
-  /* 微信 Tab */
+  /* 无聊 Tab */
   .chat-search{
     padding:8px 12px;
     background:#ededed;
@@ -568,22 +562,12 @@
 
 <div class="phone">
 
-  <!-- ============ 状态栏 ============ -->
-  <div class="status-bar" id="status-bar">
-    <span class="time">9:41</span>
-    <span class="right">
-      <i class="fas fa-signal"></i>
-      <i class="fas fa-wifi"></i>
-      <i class="fas fa-battery-full"></i>
-    </span>
-  </div>
-
   <!-- ============ 登录/注册 ============ -->
   <div id="auth-view">
     <div class="auth-header">
       <div class="auth-logo"><i class="fas fa-comment-dots"></i></div>
-      <h1>微聊</h1>
-      <p>WeiChat Lite · 即时通讯 简化版</p>
+      <h1>无聊</h1>
+      <p>无聊 · 即时通讯 简化版</p>
     </div>
 
     <div class="auth-form">
@@ -651,13 +635,13 @@
     <!-- 顶部导航 -->
     <div class="nav-header">
       <button class="icon-btn" id="header-left"><i class="fas fa-plus"></i></button>
-      <h2 id="nav-title">微信</h2>
+      <h2 id="nav-title">无聊</h2>
       <button class="icon-btn" id="header-right"><i class="fas fa-search"></i></button>
     </div>
 
     <div class="tab-panels">
 
-      <!-- ===== 微信 Tab ===== -->
+      <!-- ===== 无聊 Tab ===== -->
       <div class="tab-panel active" id="tab-chat">
         <div class="chat-search">
           <div class="box"><i class="fas fa-search"></i> 搜索</div>
@@ -778,7 +762,7 @@
     <!-- 底部 Tab Bar -->
     <div class="tab-bar">
       <div class="tab active" data-tab="chat">
-        <i class="fas fa-comments"></i><span>微信</span>
+        <i class="fas fa-comments"></i><span>无聊</span>
       </div>
       <div class="tab" data-tab="contacts">
         <i class="fas fa-address-book"></i><span>通讯录</span>
@@ -1028,7 +1012,7 @@ $('btn-register').onclick=()=>{
   currentUser=newUser;
   $('reg-error').textContent='';
   enterMain();
-  toast('注册成功，欢迎加入微聊！');
+  toast('注册成功，欢迎加入无聊！');
 };
 
 function enterMain(){
@@ -1063,7 +1047,7 @@ $('btn-logout').onclick=()=>{
 };
 
 /* ============ Tab 切换 ============ */
-const TAB_TITLES={chat:'微信',contacts:'通讯录',discover:'发现',profile:'我'};
+const TAB_TITLES={chat:'无聊',contacts:'通讯录',discover:'发现',profile:'我'};
 function switchTab(name){
   document.querySelectorAll('.tab-bar .tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===name));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+name));
@@ -1187,7 +1171,7 @@ function renderProfile(){
   av.className='avatar av-'+(u.avatar||1);
   av.innerHTML=`<i class="fas fa-${AV_ICONS[u.avatar]||'paw'}"></i>`;
   $('profile-nickname').textContent=u.nickname;
-  $('profile-username').textContent='微信号：'+u.username;
+  $('profile-username').textContent='无聊号：'+u.username;
   $('profile-bio').textContent=u.bio||'点击设置个性签名...';
   $('profile-bio').onclick=()=>{
     const bio=prompt('设置个性签名：',u.bio||'');
@@ -1324,16 +1308,6 @@ function renderAll(){
   renderContacts();
   renderProfile();
 }
-
-/* ============ 状态栏时间 ============ */
-function updateStatusBarTime(){
-  const d=new Date();
-  const h=d.getHours().toString().padStart(2,'0');
-  const m=d.getMinutes().toString().padStart(2,'0');
-  document.querySelector('.status-bar .time').textContent=h+':'+m;
-}
-setInterval(updateStatusBarTime,10000);
-updateStatusBarTime();
 
 /* ============ 初始化 ============ */
 refreshAuth();
