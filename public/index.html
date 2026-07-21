@@ -396,6 +396,65 @@
     transform:translateX(0);
   }
 
+  /* ===== 表情选择器 ===== */
+  .emoji-picker{
+    position:absolute;
+    bottom:60px;
+    left:0;right:0;
+    background:#fff;
+    border-top:1px solid var(--line);
+    z-index:60;
+    display:none;
+    flex-direction:column;
+    max-height:400px;
+    transform:translateY(100%);
+    transition:transform .2s;
+  }
+  .emoji-picker.show{
+    display:flex;
+    transform:translateY(0);
+  }
+  .emoji-header{
+    display:flex;
+    padding:12px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .emoji-header span{
+    flex:1;
+    text-align:center;
+    font-size:14px;
+    color:var(--text-2);
+    padding:4px 0;
+    border-bottom:2px solid transparent;
+    cursor:pointer;
+  }
+  .emoji-header span.active{
+    color:var(--brand);
+    border-bottom-color:var(--brand);
+  }
+  .emoji-content{
+    flex:1;
+    overflow-y:auto;
+    padding:10px;
+    display:flex;
+    flex-wrap:wrap;
+    align-content:flex-start;
+  }
+  .emoji-item{
+    width:50px;
+    height:50px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:24px;
+    cursor:pointer;
+    border-radius:4px;
+    transition:background .1s;
+  }
+  .emoji-item:hover{
+    background:#f0f0f0;
+  }
+
   /* ===== 公众号详情页 ===== */
   #official-account-view{
     position:absolute;
@@ -866,11 +925,21 @@
     </div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input-bar">
-      <button class="icon-btn"><i class="far fa-face-smile"></i></button>
+      <button class="icon-btn" id="btn-emoji"><i class="far fa-face-smile"></i></button>
       <textarea id="chat-input" rows="1" placeholder="说点什么..."></textarea>
       <button class="icon-btn"><i class="fas fa-microphone"></i></button>
       <button class="send-btn" id="btn-send">发送</button>
     </div>
+  </div>
+
+  <!-- ============ 表情选择器 ============ -->
+  <div class="emoji-picker" id="emoji-picker">
+    <div class="emoji-header">
+      <span>最近</span>
+      <span class="active">表情</span>
+      <span>颜文字</span>
+    </div>
+    <div class="emoji-content" id="emoji-content"></div>
   </div>
 
   <!-- ============ 公众号详情页 ============ -->
@@ -1336,6 +1405,43 @@ async function renderOfficialAccount(){
     };
   }
 }
+
+/* ============ 表情选择器 ============ */
+const EMOJIS=[
+  '😀','😃','😄','😁','😆','😅','🤣','😂','🙂','😊','😇','🥰','😍','🤩','😘','😗','😚','😙','🥲','😋','😛','😜','🤪','😝','🤑','🤗','🤭','🤫','🤔','🤐','🤨','😐','😑','😶','😏','😒','🙄','😬','😮‍💨','🤥','😌','😔','😪','🤤','😴','😷','🤒','🤕','🤢','🤮','🤧','🥵','🥶','🥴','😵','🤯','🤠','🥳','🥸','😎','🤓','🧐','😕','😟','🙁','☹️','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','🥱','😤','😡','😠','🤬','😈','👿','💀','☠️','💩','🤡','👹','👺','👻','👽','👾','🤖','🎃','😺','😸','😹','😻','😼','😽','🙀','😿','😾','🙈','🙉','🙊','💋','👄','👅','👂','👃','👁️','👀','👨','👩','👴','👵','👶','👧','👦','👩','👨','👩‍🦰','👨‍🦰','👩‍🦱','👨‍🦱','👩‍🦳','👨‍🦳','👩‍🦲','👨‍🦲','🧔','🧔‍♀️','👱','👱‍♀️','🧑','🧒','👼','🤰','🤱','🙇','🙇‍♀️','💁','💁‍♀️','🙅','🙅‍♀️','🙆','🙆‍♀️','🤦','🤦‍♀️','🤷','🤷‍♀️','🙋','🙋‍♀️','🧏','🧏‍♀️','🙌','👏','👈','👉','👆','👇','☝️','✋','🤚','🖐️','🖖','👌','🤌','🤏','✌️','🤞','🤟','🤘','👎','👍','👊','🤛','🤜','🤞','✊','🤛','🤜','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦵','🦿','🦶','👂','🦻','👃','🧠','🫀','🫁','🦷','🦴','👀','👁️','👅','👄','💋'
+];
+
+function initEmoji(){
+  const picker=$('emoji-picker');
+  const content=$('emoji-content');
+  
+  content.innerHTML=EMOJIS.map(e=>`<div class="emoji-item" data-emoji="${e}">${e}</div>`).join('');
+  
+  content.querySelectorAll('.emoji-item').forEach(item=>{
+    item.onclick=()=>{
+      const emoji=item.dataset.emoji;
+      const input=$('chat-input');
+      const start=input.selectionStart;
+      const end=input.selectionEnd;
+      const text=input.value;
+      input.value=text.substring(0,start)+emoji+text.substring(end);
+      input.focus();
+      input.setSelectionRange(start+emoji.length,start+emoji.length);
+    };
+  });
+  
+  $('btn-emoji').onclick=(e)=>{
+    e.stopPropagation();
+    picker.classList.toggle('show');
+  };
+  
+  document.addEventListener('click',(e)=>{
+    if(!picker.contains(e.target)&&e.target!==$('btn-emoji')){
+      picker.classList.remove('show');
+    }
+  });
+}
+initEmoji();
 
 /* ============ 聊天详情 ============ */
 async function openChat(friendUsername){
