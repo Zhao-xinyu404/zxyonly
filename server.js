@@ -2,23 +2,53 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.resolve(__dirname, 'data');
-
-function ensureDir(dir) {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-    console.log('[INFO] Created directory:', dir);
+function findWritableDir() {
+  const candidates = [
+    process.env.WULIAO_DATA_DIR,
+    path.resolve(__dirname, 'data'),
+    path.resolve(__dirname, '.data'),
+    '/app/data',
+    '/tmp/wuliao-data'
+  ].filter(Boolean);
+  
+  for (const dir of candidates) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      const testFile = path.join(dir, 'test_write_' + Date.now() + '.tmp');
+      fs.writeFileSync(testFile, 'test');
+      const content = fs.readFileSync(testFile, 'utf8');
+      fs.unlinkSync(testFile);
+      if (content === 'test') {
+        console.log('[INFO] Found writable directory:', dir);
+        return dir;
+      }
+    } catch (e) {
+      console.warn('[WARN] Directory not writable:', dir, e.message);
+    }
   }
+  
+  console.error('[ERROR] No writable directory found, using memory only');
+  return null;
 }
 
-const USERS_DIR = path.join(DATA_DIR, 'users');
-const FRIENDS_DIR = path.join(DATA_DIR, 'friends');
-const MESSAGES_DIR = path.join(DATA_DIR, 'messages');
+const DATA_DIR = findWritableDir();
 
-ensureDir(DATA_DIR);
-ensureDir(USERS_DIR);
-ensureDir(FRIENDS_DIR);
-ensureDir(MESSAGES_DIR);
+let USERS_DIR, FRIENDS_DIR, MESSAGES_DIR;
+
+if (DATA_DIR) {
+  USERS_DIR = path.join(DATA_DIR, 'users');
+  FRIENDS_DIR = path.join(DATA_DIR, 'friends');
+  MESSAGES_DIR = path.join(DATA_DIR, 'messages');
+  
+  try {
+    fs.mkdirSync(USERS_DIR, { recursive: true });
+    fs.mkdirSync(FRIENDS_DIR, { recursive: true });
+    fs.mkdirSync(MESSAGES_DIR, { recursive: true });
+    console.log('[INFO] All directories created successfully');
+  } catch (e) {
+    console.error('[ERROR] Cannot create data directories:', e.message);
+  }
+}
 
 function userFile(username) { return path.join(USERS_DIR, username + '.json'); }
 function friendsFile(username) { return path.join(FRIENDS_DIR, username + '.json'); }
@@ -27,7 +57,12 @@ function messagesFile(a, b) {
   return path.join(MESSAGES_DIR, key + '.json');
 }
 
+let users = [];
+let friendsData = {};
+let messagesData = {};
+
 function readJSON(file, defaultVal) {
+  if (!DATA_DIR) return defaultVal;
   try {
     if (fs.existsSync(file)) {
       const content = fs.readFileSync(file, 'utf8');
@@ -40,6 +75,7 @@ function readJSON(file, defaultVal) {
 }
 
 function writeJSON(file, data) {
+  if (!DATA_DIR) return false;
   try {
     const dir = path.dirname(file);
     if (!fs.existsSync(dir)) {
@@ -55,29 +91,56 @@ function writeJSON(file, data) {
 }
 
 function getUser(username) {
-  return readJSON(userFile(username), null);
+  if (DATA_DIR) {
+    return readJSON(userFile(username), null);
+  }
+  return users.find(u => u.username === username);
 }
 
 function saveUser(user) {
-  return writeJSON(userFile(user.username), user);
+  if (DATA_DIR) {
+    const result = writeJSON(userFile(user.username), user);
+    if (!result) {
+      console.error('[ERROR] Failed to save user:', user.username);
+    }
+    return result;
+  }
+  const idx = users.findIndex(u => u.username === user.username);
+  if (idx >= 0) users[idx] = user;
+  else users.push(user);
+  return true;
 }
 
 function getAllUsers() {
-  try {
-    const files = fs.readdirSync(USERS_DIR).filter(f => f.endsWith('.json'));
-    return files.map(f => readJSON(path.join(USERS_DIR, f), null)).filter(Boolean);
-  } catch (e) {
-    console.error('[ERROR] getAllUsers:', e.message);
-    return [];
+  if (DATA_DIR) {
+    try {
+      const files = fs.readdirSync(USERS_DIR).filter(f => f.endsWith('.json'));
+      return files.map(f => readJSON(path.join(USERS_DIR, f), null)).filter(Boolean);
+    } catch (e) {
+      console.error('[ERROR] getAllUsers:', e.message);
+      return [];
+    }
   }
+  return users;
 }
 
 function getFriends(username) {
-  return readJSON(friendsFile(username), []);
+  if (DATA_DIR) {
+    return readJSON(friendsFile(username), []);
+  }
+  return friendsData[username] || [];
 }
 
 function saveFriends(username, list) {
-  return writeJSON(friendsFile(username), list);
+  if (DATA_DIR) {
+    const result = writeJSON(friendsFile(username), list);
+    if (!result) {
+      console.error('[ERROR] Failed to save friends:', username);
+    }
+    return result;
+  }
+  friendsData[username] = list;
+  return true;
 }
 
 function addFriend(a, b) {
@@ -95,17 +158,33 @@ function addFriend(a, b) {
 }
 
 function getMsgs(a, b) {
-  return readJSON(messagesFile(a, b), []);
+  if (DATA_DIR) {
+    return readJSON(messagesFile(a, b), []);
+  }
+  const key = [a, b].sort().join('__');
+  return messagesData[key] || [];
 }
 
 function addMsg(from, to, content) {
-  const file = messagesFile(from, to);
-  const msgs = readJSON(file, []);
+  let msgs = [];
+  
+  if (DATA_DIR) {
+    msgs = readJSON(messagesFile(from, to), []);
+  } else {
+    const key = [from, to].sort().join('__');
+    msgs = messagesData[key] || [];
+  }
   
   const msg = { from, to, content, time: Date.now() };
   msgs.push(msg);
   
-  writeJSON(file, msgs);
+  if (DATA_DIR) {
+    writeJSON(messagesFile(from, to), msgs);
+  } else {
+    const key = [from, to].sort().join('__');
+    messagesData[key] = msgs;
+  }
+  
   return msg;
 }
 
@@ -154,7 +233,6 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 200, { ok: true });
 
   const url = req.url;
-  console.log('[INFO] Request:', req.method, url);
 
   if (req.method === 'POST' && url === '/api/register') {
     const body = await readBody(req);
@@ -229,5 +307,8 @@ const server = http.createServer(async (req, res) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log('[INFO] Server running on port ' + PORT);
-  console.log('[INFO] Data directory:', DATA_DIR);
+  console.log('[INFO] Data directory:', DATA_DIR || 'MEMORY ONLY');
+  if (!DATA_DIR) {
+    console.warn('[WARN] WARNING: Using memory-only storage. All data will be lost when server restarts!');
+  }
 });
