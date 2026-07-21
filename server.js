@@ -301,6 +301,28 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { success: true, message: msg });
   }
 
+  if (req.method === 'GET' && url === '/api/debug') {
+    const debug = {
+      dataDir: DATA_DIR,
+      usersDir: USERS_DIR,
+      friendsDir: FRIENDS_DIR,
+      messagesDir: MESSAGES_DIR,
+      userFiles: [],
+      friendFiles: [],
+      messageFiles: []
+    };
+    if (DATA_DIR) {
+      try {
+        debug.userFiles = fs.readdirSync(USERS_DIR).filter(f => f.endsWith('.json'));
+        debug.friendFiles = fs.readdirSync(FRIENDS_DIR).filter(f => f.endsWith('.json'));
+        debug.messageFiles = fs.readdirSync(MESSAGES_DIR).filter(f => f.endsWith('.json'));
+      } catch (e) {
+        debug.error = e.message;
+      }
+    }
+    return send(res, 200, debug);
+  }
+
   send(res, 404, { error: 'Not found' });
 });
 
