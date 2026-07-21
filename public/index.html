@@ -974,36 +974,37 @@ function enterMain(){
   $('main-view').classList.add('show');
   $('chat-detail-view').classList.remove('show');
   switchTab('chat');
-  initSocket();
+  startPolling();
   renderAll();
 }
 
-/* ============ Socket.io 实时通信 ============ */
-function initSocket(){
-  if(socket) socket.disconnect();
-  socket=io(API_BASE || undefined);
-  socket.on('connect', ()=>{
-    socket.emit('login', currentUser.username);
-  });
-  socket.on('new-message', (msg)=>{
-    if(msg.to===currentUser.username){
-      if(currentChatTarget===msg.from){
-        renderChatMessages();
-      }else{
-        unreadMap[msg.from]=(unreadMap[msg.from]||0)+1;
-        renderChatList();
-      }
+/* ============ 轮询获取新消息 ============ */
+let pollTimer=null;
+function startPolling(){
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer=setInterval(()=>{
+    if(currentUser&&currentChatTarget){
+      api(`/api/messages/${currentUser.username}/${currentChatTarget}`,'','GET').then(res=>{
+        if(res.success) renderChatMessages();
+      });
     }
-  });
+    if(currentUser){
+      api(`/api/friends/${currentUser.username}`,'','GET').then(res=>{
+        if(res.success) renderChatList();
+      });
+    }
+  },2000);
+}
+function stopPolling(){
+  if(pollTimer){
+    clearInterval(pollTimer);
+    pollTimer=null;
+  }
 }
 
 $('btn-logout').onclick=()=>{
   showConfirm('确定退出登录吗？',()=>{
-    if(socket){
-      socket.emit('logout', currentUser.username);
-      socket.disconnect();
-      socket=null;
-    }
+    stopPolling();
     localStorage.removeItem('wuliao_session');
     currentUser=null;
     currentChatTarget=null;
@@ -1240,14 +1241,17 @@ $('chat-input').addEventListener('keydown',function(e){
 $('btn-send').onclick=sendMessage;
 
 function sendMessage(){
-  if(!currentChatTarget||!currentUser||!socket) return;
+  if(!currentChatTarget||!currentUser) return;
   const input=$('chat-input');
   const text=input.value.trim();
   if(!text) return;
-  socket.emit('send-message',{from:currentUser.username,to:currentChatTarget,content:text});
-  input.value='';
-  autoResize(input);
-  setTimeout(()=>{renderChatMessages();renderChatList();},200);
+  api('/api/messages/send',{from:currentUser.username,to:currentChatTarget,content:text},'POST').then(res=>{
+    if(res.success){
+      input.value='';
+      autoResize(input);
+      setTimeout(()=>{renderChatMessages();renderChatList();},200);
+    }
+  });
 }
 
 /* ============ 工具 ============ */

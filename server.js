@@ -144,6 +144,16 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { success: true, messages: [] });
   }
 
+  if (req.method === 'POST' && url === '/api/messages/send') {
+    const body = await readBody(req);
+    const { from, to, content } = body;
+    if (!from || !to || !content) return send(res, 200, { success: false, msg: '参数错误' });
+    if (!getUser(from) || !getUser(to)) return send(res, 200, { success: false, msg: '用户不存在' });
+    if (!getFriends(from).includes(to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
+    const msg = addMsg(from, to, content);
+    return send(res, 200, { success: true, message: msg });
+  }
+
   send(res, 404, { error: 'Not found' });
 });
 
