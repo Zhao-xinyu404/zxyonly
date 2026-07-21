@@ -5,23 +5,22 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 
-require('dotenv').config();
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+  cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
 const DATA_DIR = path.join(__dirname, 'data');
+if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const FRIENDS_FILE = path.join(DATA_DIR, 'friends.json');
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
-
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 function loadData() {
   try {
@@ -39,20 +38,26 @@ function saveData() {
   } catch (e) {}
 }
 
-let users = [], friends = {}, messages = {}, socketMap = {};
+let users = [];
+let friends = {};
+let messages = {};
+let socketMap = {};
+
 loadData();
 
 if (users.length === 0) {
   users = [
     { username: 'alice', password: '1234', nickname: 'Alice', avatar: 2, bio: '爱丽丝的奇幻世界', createdAt: Date.now() },
     { username: 'bob', password: '1234', nickname: 'Bob', avatar: 4, bio: '今天也是元气满满', createdAt: Date.now() },
-    { username: 'charlie', password: '1234', nickname: 'Charlie', avatar: 5, bio: '咖啡 · 代码 · 生活', createdAt: Date.now() }
+    { username: 'charlie', password: '1234', nickname: 'Charlie', avatar: 5, bio: '咖啡代码生活', createdAt: Date.now() }
   ];
-  friends['alice'] = ['bob']; friends['bob'] = ['alice']; friends['charlie'] = [];
+  friends['alice'] = ['bob'];
+  friends['bob'] = ['alice'];
+  friends['charlie'] = [];
   saveData();
 }
 
-function getUserByUsername(username) { return users.find(u => u.username === username); }
+function getUser(username) { return users.find(u => u.username === username); }
 function getFriends(username) { return friends[username] || []; }
 function addFriend(a, b) {
   if (!friends[a]) friends[a] = [];
@@ -61,10 +66,12 @@ function addFriend(a, b) {
   if (!friends[b].includes(a)) friends[b].push(a);
   saveData();
 }
-function getMsgKey(a, b) { return [a, b].sort().join('__'); }
-function getMessages(a, b) { return messages[getMsgKey(a, b)] || []; }
-function addMessage(from, to, content) {
-  const key = getMsgKey(from, to);
+function getMsgs(a, b) {
+  const key = [a, b].sort().join('__');
+  return messages[key] || [];
+}
+function addMsg(from, to, content) {
+  const key = [from, to].sort().join('__');
   if (!messages[key]) messages[key] = [];
   const msg = { from, to, content, time: Date.now() };
   messages[key].push(msg);
@@ -77,15 +84,17 @@ app.post('/api/register', (req, res) => {
   if (!username || !password || !nickname) return res.json({ success: false, msg: '请填写完整信息' });
   if (username.length < 3) return res.json({ success: false, msg: '用户名至少3个字符' });
   if (password.length < 4) return res.json({ success: false, msg: '密码至少4位' });
-  if (getUserByUsername(username)) return res.json({ success: false, msg: '该用户名已被注册' });
+  if (getUser(username)) return res.json({ success: false, msg: '该用户名已被注册' });
   const user = { username, password, nickname, avatar: avatar || 1, bio: '', createdAt: Date.now() };
-  users.push(user); friends[username] = []; saveData();
+  users.push(user);
+  friends[username] = [];
+  saveData();
   res.json({ success: true, user });
 });
 
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
-  const user = getUserByUsername(username);
+  const user = getUser(username);
   if (!user || user.password !== password) return res.json({ success: false, msg: '用户名或密码错误' });
   res.json({ success: true, user });
 });
@@ -93,7 +102,7 @@ app.post('/api/login', (req, res) => {
 app.post('/api/add-friend', (req, res) => {
   const { from, to } = req.body;
   if (from === to) return res.json({ success: false, msg: '不能添加自己为好友' });
-  const target = getUserByUsername(to);
+  const target = getUser(to);
   if (!target) return res.json({ success: false, msg: '用户不存在' });
   if (getFriends(from).includes(to)) return res.json({ success: false, msg: '你们已经是好友了' });
   addFriend(from, to);
@@ -101,34 +110,41 @@ app.post('/api/add-friend', (req, res) => {
 });
 
 app.get('/api/user/:username', (req, res) => {
-  const user = getUserByUsername(req.params.username);
+  const user = getUser(req.params.username);
   if (!user) return res.json({ success: false, msg: '用户不存在' });
   res.json({ success: true, user });
 });
 
 app.get('/api/friends/:username', (req, res) => {
-  const friendList = getFriends(req.params.username).map(u => getUserByUsername(u)).filter(Boolean);
-  res.json({ success: true, friends: friendList });
+  const list = getFriends(req.params.username).map(u => getUser(u)).filter(Boolean);
+  res.json({ success: true, friends: list });
 });
 
 app.get('/api/messages/:from/:to', (req, res) => {
-  res.json({ success: true, messages: getMessages(req.params.from, req.params.to) });
+  res.json({ success: true, messages: getMsgs(req.params.from, req.params.to) });
 });
 
 io.on('connection', (socket) => {
-  socket.on('login', (username) => { socketMap[username] = socket.id; socket.username = username; });
-  socket.on('logout', (username) => { delete socketMap[username]; });
+  socket.on('login', (username) => {
+    socketMap[username] = socket.id;
+    socket.username = username;
+  });
+  socket.on('logout', (username) => {
+    delete socketMap[username];
+  });
   socket.on('send-message', (data) => {
     const { from, to, content } = data;
-    const msg = addMessage(from, to, content);
+    const msg = addMsg(from, to, content);
     const targetSocket = socketMap[to];
     if (targetSocket) io.to(targetSocket).emit('new-message', msg);
     socket.emit('message-sent', msg);
   });
-  socket.on('disconnect', () => { if (socket.username) delete socketMap[socket.username]; });
+  socket.on('disconnect', () => {
+    if (socket.username) delete socketMap[socket.username];
+  });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`无聊聊天服务已启动，端口: ${PORT}`);
+  console.log('Server running on port ' + PORT);
 });
