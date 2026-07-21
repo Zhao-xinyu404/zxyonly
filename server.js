@@ -2,12 +2,19 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, 'data');
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const DATA_DIR = path.resolve(__dirname, 'data');
+console.log('Data directory:', DATA_DIR);
+if (!fs.existsSync(DATA_DIR)) {
+  console.log('Creating data directory');
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
 
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const FRIENDS_FILE = path.join(DATA_DIR, 'friends.json');
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
+
+console.log('Users file:', USERS_FILE);
+console.log('Messages file:', MESSAGES_FILE);
 
 let users = [];
 let friends = {};
@@ -128,6 +135,12 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url === '/api/users') {
     const allUsers = users.map(u => ({ username: u.username, nickname: u.nickname, avatar: u.avatar, createdAt: u.createdAt }));
     return send(res, 200, { success: true, users: allUsers });
+  }
+
+  if (req.method === 'GET' && url === '/api/debug/messages') {
+    const keys = Object.keys(messages);
+    const summary = keys.map(k => ({ key: k, count: messages[k].length }));
+    return send(res, 200, { success: true, totalKeys: keys.length, summary });
   }
 
   if (req.method === 'GET' && url.startsWith('/api/user/')) {
