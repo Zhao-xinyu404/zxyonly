@@ -2,93 +2,36 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-function findWritableDir() {
-  const candidates = [
-    '/tmp/wuliao-data',
-    '/app/wuliao-data',
-    path.resolve(__dirname, 'data'),
-    process.env.WULIAO_DATA_DIR
-  ].filter(Boolean);
-  
-  for (const dir of candidates) {
-    try {
-      fs.mkdirSync(dir, { recursive: true });
-      const testFile = path.join(dir, 'test_write.txt');
-      fs.writeFileSync(testFile, 'test');
-      fs.unlinkSync(testFile);
-      console.log('[INFO] Found writable directory:', dir);
-      return dir;
-    } catch (e) {
-      console.warn('[WARN] Directory not writable:', dir, e.message);
-    }
-  }
-  
-  console.error('[ERROR] No writable directory found, using memory only');
-  return null;
-}
+const DATA_DIR = path.resolve(__dirname, 'data');
 
-const DATA_DIR = findWritableDir();
-
-let USERS_DIR, FRIENDS_DIR, MESSAGES_DIR;
-
-if (DATA_DIR) {
-  console.log('[INFO] Data directory:', DATA_DIR);
-  
-  USERS_DIR = path.join(DATA_DIR, 'users');
-  FRIENDS_DIR = path.join(DATA_DIR, 'friends');
-  MESSAGES_DIR = path.join(DATA_DIR, 'messages');
-
-  function ensureDir(dir) {
-    if (!fs.existsSync(dir)) {
-      try {
-        fs.mkdirSync(dir, { recursive: true });
-        console.log('[INFO] Created directory:', dir);
-      } catch (e) {
-        console.error('[ERROR] Failed to create directory:', dir, e.message);
-        throw e;
-      }
-    }
-  }
-
-  try {
-    ensureDir(DATA_DIR);
-    ensureDir(USERS_DIR);
-    ensureDir(FRIENDS_DIR);
-    ensureDir(MESSAGES_DIR);
-    console.log('[INFO] All directories created successfully');
-  } catch (e) {
-    console.error('[ERROR] Cannot create data directories:', e.message);
-  }
-
-  function userFile(username) { return path.join(USERS_DIR, username + '.json'); }
-  function friendsFile(username) { return path.join(FRIENDS_DIR, username + '.json'); }
-  function messagesFile(a, b) {
-    const key = [a, b].sort().join('__');
-    return path.join(MESSAGES_DIR, key + '.json');
-  }
-} else {
-  console.warn('[WARN] Using memory-only storage, data will be lost on restart');
-  
-  function userFile(username) { return path.join('users', username + '.json'); }
-  function friendsFile(username) { return path.join('friends', username + '.json'); }
-  function messagesFile(a, b) {
-    const key = [a, b].sort().join('__');
-    return path.join('messages', key + '.json');
+function ensureDir(dir) {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log('[INFO] Created directory:', dir);
   }
 }
 
-let users = [];
-let friends = {};
-let messages = {};
+const USERS_DIR = path.join(DATA_DIR, 'users');
+const FRIENDS_DIR = path.join(DATA_DIR, 'friends');
+const MESSAGES_DIR = path.join(DATA_DIR, 'messages');
+
+ensureDir(DATA_DIR);
+ensureDir(USERS_DIR);
+ensureDir(FRIENDS_DIR);
+ensureDir(MESSAGES_DIR);
+
+function userFile(username) { return path.join(USERS_DIR, username + '.json'); }
+function friendsFile(username) { return path.join(FRIENDS_DIR, username + '.json'); }
+function messagesFile(a, b) {
+  const key = [a, b].sort().join('__');
+  return path.join(MESSAGES_DIR, key + '.json');
+}
 
 function readJSON(file, defaultVal) {
-  if (!DATA_DIR) return defaultVal;
   try {
     if (fs.existsSync(file)) {
       const content = fs.readFileSync(file, 'utf8');
-      const data = JSON.parse(content);
-      console.log('[DEBUG] Read file:', file, 'size:', content.length, 'bytes');
-      return data;
+      return JSON.parse(content);
     }
   } catch (e) {
     console.warn('[WARN] Read error:', file, e.message);
@@ -97,7 +40,6 @@ function readJSON(file, defaultVal) {
 }
 
 function writeJSON(file, data) {
-  if (!DATA_DIR) return false;
   try {
     const dir = path.dirname(file);
     if (!fs.existsSync(dir)) {
@@ -105,15 +47,6 @@ function writeJSON(file, data) {
     }
     const content = JSON.stringify(data, null, 2);
     fs.writeFileSync(file, content);
-    const fd = fs.openSync(file, 'r+');
-    fs.fsyncSync(fd);
-    fs.closeSync(fd);
-    console.log('[DEBUG] Written file:', file, 'size:', content.length, 'bytes');
-    
-    if (!fs.existsSync(file)) {
-      console.error('[ERROR] File not found after write:', file);
-      return false;
-    }
     return true;
   } catch (e) {
     console.error('[ERROR] Write error:', file, e.message);
@@ -122,110 +55,57 @@ function writeJSON(file, data) {
 }
 
 function getUser(username) {
-  if (DATA_DIR) {
-    return readJSON(userFile(username), null);
-  }
-  return users.find(u => u.username === username);
+  return readJSON(userFile(username), null);
 }
 
 function saveUser(user) {
-  if (DATA_DIR) {
-    return writeJSON(userFile(user.username), user);
-  }
-  const idx = users.findIndex(u => u.username === user.username);
-  if (idx >= 0) users[idx] = user;
-  else users.push(user);
-  return true;
+  return writeJSON(userFile(user.username), user);
 }
 
 function getAllUsers() {
-  if (DATA_DIR) {
-    try {
-      const files = fs.readdirSync(USERS_DIR).filter(f => f.endsWith('.json'));
-      console.log('[DEBUG] Found users:', files.length, files);
-      return files.map(f => readJSON(path.join(USERS_DIR, f), null)).filter(Boolean);
-    } catch (e) {
-      console.error('[ERROR] getAllUsers:', e.message);
-      return [];
-    }
+  try {
+    const files = fs.readdirSync(USERS_DIR).filter(f => f.endsWith('.json'));
+    return files.map(f => readJSON(path.join(USERS_DIR, f), null)).filter(Boolean);
+  } catch (e) {
+    console.error('[ERROR] getAllUsers:', e.message);
+    return [];
   }
-  return users;
 }
 
 function getFriends(username) {
-  if (DATA_DIR) {
-    return readJSON(friendsFile(username), []);
-  }
-  return friends[username] || [];
+  return readJSON(friendsFile(username), []);
 }
 
 function saveFriends(username, list) {
-  if (DATA_DIR) {
-    return writeJSON(friendsFile(username), list);
-  }
-  friends[username] = list;
-  return true;
+  return writeJSON(friendsFile(username), list);
 }
 
 function addFriend(a, b) {
-  console.log('[INFO] Adding friend:', a, '<->', b);
   const fa = getFriends(a);
   const fb = getFriends(b);
-  console.log('[DEBUG] Current friends:', a, 'has', fa.length, 'friends:', fa);
-  console.log('[DEBUG] Current friends:', b, 'has', fb.length, 'friends:', fb);
   
   if (!fa.includes(b)) {
     fa.push(b);
-    const result = saveFriends(a, fa);
-    console.log('[DEBUG] Saved friends for', a, '- result:', result);
+    saveFriends(a, fa);
   }
   if (!fb.includes(a)) {
     fb.push(a);
-    const result = saveFriends(b, fb);
-    console.log('[DEBUG] Saved friends for', b, '- result:', result);
+    saveFriends(b, fb);
   }
 }
 
 function getMsgs(a, b) {
-  if (DATA_DIR) {
-    return readJSON(messagesFile(a, b), []);
-  }
-  const key = [a, b].sort().join('__');
-  return messages[key] || [];
+  return readJSON(messagesFile(a, b), []);
 }
 
 function addMsg(from, to, content) {
-  console.log('[INFO] Sending message:', from, '->', to, content.length, 'chars');
-  let msgs = [];
-  let file = null;
-  
-  if (DATA_DIR) {
-    file = messagesFile(from, to);
-    msgs = readJSON(file, []);
-  } else {
-    const key = [from, to].sort().join('__');
-    msgs = messages[key] || [];
-  }
-  
-  console.log('[DEBUG] Existing messages:', msgs.length);
+  const file = messagesFile(from, to);
+  const msgs = readJSON(file, []);
   
   const msg = { from, to, content, time: Date.now() };
   msgs.push(msg);
   
-  let result = false;
-  if (DATA_DIR) {
-    result = writeJSON(file, msgs);
-    if (!result) {
-      console.error('[ERROR] Failed to save message to file:', file);
-      return null;
-    }
-  } else {
-    const key = [from, to].sort().join('__');
-    messages[key] = msgs;
-    result = true;
-  }
-  
-  console.log('[DEBUG] Saved messages - result:', result, 'total:', msgs.length);
+  writeJSON(file, msgs);
   return msg;
 }
 
@@ -238,16 +118,12 @@ const DEFAULT_USERS = [
 
 function initDefaultData() {
   const all = getAllUsers();
-  console.log('[INFO] initDefaultData - found', all.length, 'users');
   if (all.length > 0) {
     console.log('[INFO] Users already exist, skipping initialization');
     return;
   }
   console.log('[INFO] Initializing default users');
-  DEFAULT_USERS.forEach(u => {
-    const result = saveUser(u);
-    console.log('[DEBUG] Saved user:', u.username, '- result:', result);
-  });
+  DEFAULT_USERS.forEach(u => saveUser(u));
   addFriend('alice', 'bob');
   console.log('[INFO] Default data initialized');
 }
@@ -322,7 +198,6 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.startsWith('/api/friends/')) {
     const username = decodeURIComponent(url.slice(13));
     const friendNames = getFriends(username);
-    console.log('[DEBUG] Friends for', username, ':', friendNames);
     const list = friendNames.map(name => getUser(name)).filter(Boolean);
     return send(res, 200, { success: true, friends: list });
   }
@@ -333,7 +208,6 @@ const server = http.createServer(async (req, res) => {
       const a = decodeURIComponent(parts[0]);
       const b = decodeURIComponent(parts[1]);
       const msgs = getMsgs(a, b);
-      console.log('[DEBUG] Messages between', a, 'and', b, ':', msgs.length);
       return send(res, 200, { success: true, messages: msgs });
     }
     return send(res, 200, { success: true, messages: [] });
@@ -346,7 +220,6 @@ const server = http.createServer(async (req, res) => {
     if (!getUser(from) || !getUser(to)) return send(res, 200, { success: false, msg: '用户不存在' });
     if (!getFriends(from).includes(to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
     const msg = addMsg(from, to, content);
-    if (!msg) return send(res, 200, { success: false, msg: '消息发送失败，请重试' });
     return send(res, 200, { success: true, message: msg });
   }
 
@@ -356,4 +229,5 @@ const server = http.createServer(async (req, res) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log('[INFO] Server running on port ' + PORT);
+  console.log('[INFO] Data directory:', DATA_DIR);
 });
