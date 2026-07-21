@@ -121,6 +121,11 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { success: true, target });
   }
 
+  if (req.method === 'GET' && url === '/api/users') {
+    const allUsers = users.map(u => ({ username: u.username, nickname: u.nickname, avatar: u.avatar, createdAt: u.createdAt }));
+    return send(res, 200, { success: true, users: allUsers });
+  }
+
   if (req.method === 'GET' && url.startsWith('/api/user/')) {
     const username = decodeURIComponent(url.slice(10));
     const user = getUser(username);
