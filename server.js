@@ -96,7 +96,9 @@ function writeJSON(file, data) {
     }
     const content = JSON.stringify(data, null, 2);
     fs.writeFileSync(file, content);
-    fs.fsyncSync(fs.openSync(file, 'r+'));
+    const fd = fs.openSync(file, 'r+');
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
     console.log('[DEBUG] Written file:', file, 'size:', content.length, 'bytes');
     
     if (!fs.existsSync(file)) {
