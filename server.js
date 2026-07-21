@@ -22,10 +22,12 @@ try {
 if (users.length === 0) {
   users = [
     { username: 'alice', password: '1234', nickname: 'Alice', avatar: 2, bio: 'hi', createdAt: Date.now() },
-    { username: 'bob', password: '1234', nickname: 'Bob', avatar: 4, bio: 'hello', createdAt: Date.now() }
+    { username: 'bob', password: '1234', nickname: 'Bob', avatar: 4, bio: 'hello', createdAt: Date.now() },
+    { username: 'charlie', password: '1234', nickname: 'Charlie', avatar: 5, bio: 'hey', createdAt: Date.now() }
   ];
   friends['alice'] = ['bob'];
   friends['bob'] = ['alice'];
+  friends['charlie'] = [];
   saveData();
 }
 
@@ -133,6 +135,17 @@ const server = http.createServer(async (req, res) => {
     if (parts.length >= 2) {
       return send(res, 200, { success: true, messages: getMsgs(decodeURIComponent(parts[0]), decodeURIComponent(parts[1])) });
     }
+    return send(res, 200, { success: true, messages: [] });
+  }
+
+  if (req.method === 'POST' && url === '/api/messages/send') {
+    const b = await readBody(req);
+    const { from, to, content } = b;
+    if (!from || !to || !content) return send(res, 200, { success: false, msg: '参数错误' });
+    if (!getUser(from) || !getUser(to)) return send(res, 200, { success: false, msg: '用户不存在' });
+    if (!getFriends(from).includes(to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
+    const msg = addMsg(from, to, content);
+    return send(res, 200, { success: true, message: msg });
   }
 
   send(res, 404, { error: 'Not found' });
