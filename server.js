@@ -157,7 +157,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (req.method === 'GET' && url.startsWith('/api/messages/')) {
-    const parts = url.slice(13).split('/');
+    const parts = url.slice(14).split('/');
     if (parts.length >= 2) {
       const a = decodeURIComponent(parts[0]);
       const b = decodeURIComponent(parts[1]);
