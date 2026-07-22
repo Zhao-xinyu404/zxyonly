@@ -691,7 +691,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, {
       ok: true,
       service: 'wuliao-chat',
-      version: '3.0',
+      version: '3.1',
       dataDir: DATA_DIR,
       userCount: getAllUsers().length,
       momentCount: getAllMoments().length
@@ -924,7 +924,7 @@ const server = http.createServer(async (req, res) => {
       try { msgFiles = fs.readdirSync(MSG_DIR).filter(f => f.endsWith('.json')); } catch (e) {}
     }
     return send(res, 200, {
-      version: '3.0',
+      version: '3.1',
       dataDir: DATA_DIR,
       users: getAllUsers().map(u => u.username),
       msgFiles,
