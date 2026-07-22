@@ -1683,6 +1683,104 @@
   .admin-switch input:checked + .admin-slider::before{
     transform:translateX(20px);
   }
+
+  /* ===== 用户主页详情页 ===== */
+  #user-profile-view,#group-info-view{
+    position:absolute;
+    inset:0;
+    background:var(--bg);
+    display:none;
+    flex-direction:column;
+    z-index:55;
+    transform:translateX(100%);
+    transition:transform .28s cubic-bezier(.2,.8,.2,1);
+  }
+  #user-profile-view.show,#group-info-view.show{
+    display:flex;
+    transform:translateX(0);
+  }
+  .up-content,.gi-content{
+    flex:1;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .up-header{
+    background:#fff;
+    padding:24px 16px;
+    display:flex;
+    align-items:center;
+    gap:16px;
+    border-bottom:1px solid var(--line);
+  }
+  .up-header .avatar{
+    width:64px;height:64px;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:26px;font-weight:600;
+  }
+  .up-header .up-name{font-size:20px;font-weight:600;}
+  .up-header .up-id{font-size:13px;color:var(--text-2);margin-top:4px;}
+  .up-section{
+    margin-top:10px;
+    background:#fff;
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .up-row{
+    display:flex;align-items:center;
+    padding:14px 16px;
+    border-bottom:1px solid var(--line);
+    font-size:15px;
+  }
+  .up-row:last-child{border-bottom:none;}
+  .up-row .label{color:var(--text-2);width:80px;flex-shrink:0;}
+  .up-row .value{flex:1;color:var(--text);word-break:break-all;}
+
+  /* ===== 群聊信息页 ===== */
+  .gi-header{
+    background:#fff;
+    padding:20px 16px;
+    text-align:center;
+    border-bottom:1px solid var(--line);
+  }
+  .gi-header .gi-avatar{
+    width:72px;height:72px;
+    border-radius:14px;
+    margin:0 auto 12px;
+    background:#3b82f6;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:32px;
+  }
+  .gi-header .gi-name{font-size:20px;font-weight:600;}
+  .gi-header .gi-count{font-size:13px;color:var(--text-2);margin-top:6px;}
+  .gi-section-title{
+    background:var(--bg);color:var(--text-2);
+    padding:8px 16px;font-size:13px;
+  }
+  .gi-members{
+    background:#fff;
+    border-top:1px solid var(--line);
+    border-bottom:1px solid var(--line);
+  }
+  .gi-member{
+    display:flex;align-items:center;gap:12px;
+    padding:12px 16px;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .gi-member:last-child{border-bottom:none;}
+  .gi-member:active{background:#f5f5f5;}
+  .gi-member .avatar{
+    width:42px;height:42px;border-radius:8px;
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:16px;font-weight:600;
+  }
+  .gi-member .info{flex:1;min-width:0;}
+  .gi-member .name{font-size:15px;font-weight:500;}
+  .gi-member .tag{
+    font-size:12px;color:var(--brand);
+    margin-left:6px;
+  }
 </style>
 </head>
 <body>
@@ -2017,7 +2115,7 @@
     <div class="chat-detail-header">
       <button class="icon-btn" id="chat-back"><i class="fas fa-chevron-left"></i></button>
       <h3 id="chat-target-name">聊天</h3>
-      <button class="icon-btn"><i class="fas fa-ellipsis"></i></button>
+      <button class="icon-btn" id="chat-more"><i class="fas fa-ellipsis"></i></button>
     </div>
     <div class="chat-messages" id="chat-messages"></div>
     <div class="chat-input-bar">
@@ -2079,13 +2177,33 @@
     <div class="chat-detail-header">
       <button class="icon-btn" id="gc-back"><i class="fas fa-chevron-left"></i></button>
       <h3 id="gc-name">群聊</h3>
-      <button class="icon-btn"><i class="fas fa-ellipsis"></i></button>
+      <button class="icon-btn" id="gc-more"><i class="fas fa-ellipsis"></i></button>
     </div>
     <div class="chat-messages" id="gc-messages"></div>
     <div class="chat-input-bar">
       <textarea id="gc-input" rows="1" placeholder="发消息..."></textarea>
       <button class="send-btn" id="gc-btn-send">发送</button>
     </div>
+  </div>
+
+  <!-- ============ 用户主页详情页 ============ -->
+  <div id="user-profile-view">
+    <div class="chat-detail-header">
+      <button class="icon-btn" id="up-back"><i class="fas fa-chevron-left"></i></button>
+      <h3>详细资料</h3>
+      <span style="width:36px;"></span>
+    </div>
+    <div class="up-content" id="up-content"></div>
+  </div>
+
+  <!-- ============ 群聊信息页 ============ -->
+  <div id="group-info-view">
+    <div class="chat-detail-header">
+      <button class="icon-btn" id="gi-back"><i class="fas fa-chevron-left"></i></button>
+      <h3>聊天信息</h3>
+      <span style="width:36px;"></span>
+    </div>
+    <div class="gi-content" id="gi-content"></div>
   </div>
 
   <!-- ============ 朋友圈页 ============ -->
@@ -4078,8 +4196,9 @@ async function renderGroupMessages(){
       userCache[m.from]=userR.success?userR.user:{nickname:m.from,avatar:1};
     }
     const sender=userCache[m.from];
+    const avatarHtml=userAvatarHTML(sender,sender.nickname).replace('<div class="avatar"',`<div class="avatar" data-user="${m.from}" style="cursor:pointer;"`);
     html+=`<div class="msg ${isSelf?'self':'other'}">
-      ${userAvatarHTML(sender,sender.nickname)}
+      ${avatarHtml}
       <div>
         ${!isSelf?`<div style="font-size:12px;color:var(--text-2);margin-bottom:4px;">${escapeHTML(sender.nickname)}</div>`:''}
         <div class="bubble">${escapeHTML(m.content)}</div>
@@ -4091,6 +4210,14 @@ async function renderGroupMessages(){
     <p>群聊还没有消息<br>说点什么开始吧</p>
   </div>`;
   box.scrollTop=box.scrollHeight;
+  
+  // 头像点击进入用户主页
+  box.querySelectorAll('.avatar[data-user]').forEach(av=>{
+    av.onclick=(e)=>{
+      e.stopPropagation();
+      openUserProfile(av.dataset.user);
+    };
+  });
 }
 
 function sendGroupMessage(){
@@ -4121,6 +4248,162 @@ $('gc-input').addEventListener('keydown',function(e){
   }
 });
 
+/* ============ 用户主页详情 ============ */
+let profileViewUser=null;
+async function openUserProfile(username){
+  if(!username) return;
+  const r=await api(`/api/user/${username}`,'','GET');
+  if(!r.success){toast('用户不存在');return;}
+  profileViewUser=r.user;
+  
+  // 检查是否为好友
+  const fr=await api(`/api/friends/${currentUser.username}`,'','GET');
+  const isFriend=fr.success&&fr.friends.some(f=>f.username===username);
+  
+  const u=r.user;
+  let avatarHtml;
+  if(u.avatarData){
+    avatarHtml=`<div class="avatar"><img src="${u.avatarData}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;"></div>`;
+  }else if(u.customAvatar){
+    avatarHtml=`<div class="avatar"><img src="${API_BASE}/api/avatar/${u.customAvatar}" style="width:100%;height:100%;object-fit:cover;border-radius:10px;"></div>`;
+  }else{
+    const icon=AV_ICONS[u.avatar]||'paw';
+    avatarHtml=`<div class="avatar av-${u.avatar||1}"><i class="fas fa-${icon}"></i></div>`;
+  }
+  
+  $('up-content').innerHTML=`
+    <div class="up-header">
+      ${avatarHtml}
+      <div>
+        <div class="up-name">${escapeHTML(u.nickname)}</div>
+        <div class="up-id">无聊号：${escapeHTML(u.username)}</div>
+      </div>
+    </div>
+    <div class="up-section">
+      <div class="up-row">
+        <div class="label">昵称</div>
+        <div class="value">${escapeHTML(u.nickname)}</div>
+      </div>
+      <div class="up-row">
+        <div class="label">无聊号</div>
+        <div class="value">${escapeHTML(u.username)}</div>
+      </div>
+      ${u.email?`<div class="up-row">
+        <div class="label">邮箱</div>
+        <div class="value">${escapeHTML(u.email)}</div>
+      </div>`:''}
+      <div class="up-row">
+        <div class="label">签名</div>
+        <div class="value">${escapeHTML(u.bio||'未设置')}</div>
+      </div>
+    </div>
+    ${isFriend?`<div class="up-section">
+      <div class="up-row" style="cursor:pointer;" onclick="openChat('${u.username}');$('user-profile-view').classList.remove('show');">
+        <div style="flex:1;text-align:center;color:var(--brand);font-weight:500;">
+          <i class="fas fa-comment"></i> 发消息
+        </div>
+      </div>
+    </div>`:`<div class="up-section">
+      <div class="up-row" style="cursor:pointer;" onclick="openAddFriend();$('user-profile-view').classList.remove('show');">
+        <div style="flex:1;text-align:center;color:var(--brand);font-weight:500;">
+          <i class="fas fa-user-plus"></i> 添加到通讯录
+        </div>
+      </div>
+    </div>`}
+  `;
+  
+  $('user-profile-view').classList.add('show');
+}
+$('up-back').onclick=()=>$('user-profile-view').classList.remove('show');
+
+/* ============ 群聊信息页 ============ */
+async function openGroupInfo(groupId){
+  if(!groupId) return;
+  const r=await api(`/api/groups/${groupId}`,'','GET');
+  if(!r.success){toast('群不存在');return;}
+  const group=r.group;
+  
+  // 获取所有成员信息
+  const members=await Promise.all(group.members.map(async m=>{
+    const ur=await api(`/api/user/${m}`,'','GET');
+    return ur.success?ur.user:{username:m,nickname:m,avatar:1};
+  }));
+  
+  let membersHtml='';
+  for(const m of members){
+    const isCreator=m.username===group.creator;
+    let avatarHtml;
+    if(m.avatarData){
+      avatarHtml=`<div class="avatar"><img src="${m.avatarData}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div>`;
+    }else if(m.customAvatar){
+      avatarHtml=`<div class="avatar"><img src="${API_BASE}/api/avatar/${m.customAvatar}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div>`;
+    }else{
+      const icon=AV_ICONS[m.avatar]||'paw';
+      avatarHtml=`<div class="avatar av-${m.avatar||1}"><i class="fas fa-${icon}"></i></div>`;
+    }
+    membersHtml+=`<div class="gi-member" data-user="${m.username}">
+      ${avatarHtml}
+      <div class="info">
+        <div class="name">${escapeHTML(m.nickname)}${isCreator?'<span class="tag">群主</span>':''}</div>
+      </div>
+      ${m.username!==currentUser.username?'<i class="fas fa-chevron-right" style="color:var(--text-3);font-size:14px;"></i>':''}
+    </div>`;
+  }
+  
+  $('gi-content').innerHTML=`
+    <div class="gi-header">
+      <div class="gi-avatar"><i class="fas fa-users"></i></div>
+      <div class="gi-name">${escapeHTML(group.name)}</div>
+      <div class="gi-count">群成员 ${members.length} 人</div>
+    </div>
+    <div class="gi-section-title">群成员（${members.length}）</div>
+    <div class="gi-members">
+      ${membersHtml}
+    </div>
+    <div class="up-section" style="margin-top:10px;">
+      <div class="up-row">
+        <div class="label">群聊名称</div>
+        <div class="value">${escapeHTML(group.name)}</div>
+      </div>
+      <div class="up-row">
+        <div class="label">创建时间</div>
+        <div class="value">${formatChatTime(group.createdAt)}</div>
+      </div>
+      <div class="up-row">
+        <div class="label">群ID</div>
+        <div class="value" style="font-size:12px;color:var(--text-3);">${escapeHTML(group.id)}</div>
+      </div>
+    </div>
+  `;
+  
+  // 成员点击进入主页
+  $('gi-content').querySelectorAll('.gi-member').forEach(item=>{
+    item.onclick=()=>{
+      const username=item.dataset.user;
+      if(username&&username!==currentUser.username){
+        openUserProfile(username);
+      }
+    };
+  });
+  
+  $('group-info-view').classList.add('show');
+}
+$('gi-back').onclick=()=>$('group-info-view').classList.remove('show');
+
+// 单聊三点按钮 -> 对方主页
+$('chat-more').onclick=()=>{
+  if(currentChatTarget){
+    openUserProfile(currentChatTarget);
+  }
+};
+
+// 群聊三点按钮 -> 群聊信息
+$('gc-more').onclick=()=>{
+  if(currentGroupId){
+    openGroupInfo(currentGroupId);
+  }
+};
+
 /* ============ 侧边滑退出 ============ */
 let swipeStartX=0;
 let swipeStartY=0;
@@ -4136,7 +4419,9 @@ function getSwipeableViews(){
     {id:'moments-view',backBtn:'moments-back'},
     {id:'search-view',backBtn:'search-back'},
     {id:'video-view',backBtn:'video-back'},
-    {id:'scanner-view',backBtn:'scanner-back'}
+    {id:'scanner-view',backBtn:'scanner-back'},
+    {id:'user-profile-view',backBtn:'up-back'},
+    {id:'group-info-view',backBtn:'gi-back'}
   ];
 }
 
