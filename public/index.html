@@ -2667,13 +2667,17 @@ document.querySelectorAll('.tab-bar .tab').forEach(t=>{
 
 /* ============ 渲染：聊天列表 ============ */
 let lastChatListHash='';
+let cachedFriends=[];
+let cachedGroups=[];
 async function renderChatList(force=false){
   if(!currentUser) return;
   const r=await api(`/api/friends/${currentUser.username}`,'','GET');
-  const friends=r.success?r.friends:[];
+  const friends=r.success?r.friends:cachedFriends;
+  if(r.success) cachedFriends=friends;
   
   const gr=await api(`/api/groups/user/${currentUser.username}`,'','GET');
-  const groups=gr.success?gr.groups:[];
+  const groups=gr.success?gr.groups:cachedGroups;
+  if(gr.success) cachedGroups=groups;
   
   if(friends.length===0&&groups.length===0){
     lastChatListHash='';
@@ -4532,6 +4536,8 @@ function closeCurrentView(){
       if(v.id==='official-account-view') stopOAPolling();
       if(v.id==='scanner-view') stopCamera();
       el.classList.remove('show');
+      el.style.transform='';
+      el.style.transition='';
       return;
     }
   }
@@ -4564,13 +4570,18 @@ document.addEventListener('touchmove',(e)=>{
 
 document.addEventListener('touchend',(e)=>{
   if(!swipeTarget) return;
+  const target=swipeTarget;
   const dx=e.changedTouches[0].clientX-swipeStartX;
   const dy=e.changedTouches[0].clientY-swipeStartY;
   if(dx>SWIPE_THRESHOLD&&Math.abs(dy)<Math.abs(dx)*1.5){
     closeCurrentView();
   }else{
-    swipeTarget.style.transform='translateX(0)';
-    swipeTarget.style.transition='transform .28s cubic-bezier(.2,.8,.2,1)';
+    target.style.transform='translateX(0)';
+    target.style.transition='transform .28s cubic-bezier(.2,.8,.2,1)';
+    setTimeout(()=>{
+      target.style.transform='';
+      target.style.transition='';
+    },300);
   }
   swipeTarget=null;
 },true);
