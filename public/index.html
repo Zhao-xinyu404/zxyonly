@@ -1692,7 +1692,7 @@
           </div>
           <input type="file" id="avatar-input" accept="image/*" style="display:none;">
           <div class="info">
-            <h3 id="profile-nickname"></h3>
+            <h3 id="profile-nickname" style="cursor:pointer;"></h3>
             <div class="wxid" id="profile-username"></div>
             <div class="bio" id="profile-bio"></div>
           </div>
@@ -2310,6 +2310,19 @@ function renderProfile(){
   }
   
   $('profile-nickname').textContent=u.nickname;
+  $('profile-nickname').onclick=async()=>{
+    const newName=prompt('设置昵称：',u.nickname);
+    if(newName!==null&&newName.trim()!==u.nickname){
+      const r=await api('/api/profile/update',{username:u.username,nickname:newName.trim()});
+      if(r.success){
+        currentUser.nickname=newName.trim();
+        renderProfile();
+        toast('已更新');
+      } else {
+        toast(r.msg);
+      }
+    }
+  };
   $('profile-username').textContent='无聊号：'+u.username+(u.email?' | '+u.email:'');
   $('profile-bio').textContent=u.bio||'点击设置个性签名...';
   $('profile-bio').onclick=()=>{
@@ -2334,14 +2347,14 @@ function renderProfile(){
     
     const reader=new FileReader();
     reader.onload=async(evt)=>{
-      const image=evt.target.result;
       toast('上传中...');
-      const r=await api('/api/avatar/upload',{username:u.username,image});
+      const compressed=await compressImage(evt.target.result,500);
+      const r=await api('/api/avatar/upload',{username:u.username,image:compressed});
       if(r.success){
         currentUser.customAvatar=`${u.username}.jpg`;
         currentUser.avatarData=r.avatarData;
         renderProfile();
-        toast(`上传成功！${(r.originalSize/1024).toFixed(1)}KB → ${(r.size/1024).toFixed(1)}KB`);
+        toast('上传成功');
       } else {
         toast(r.msg||'上传失败');
       }

@@ -962,6 +962,20 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { success: true, users });
   }
 
+  /* ====== 更新个人资料 ====== */
+  if (req.method === 'POST' && url === '/api/profile/update') {
+    const body = await readBody(req);
+    const { username, nickname } = body;
+    if (!username || !nickname) return send(res, 200, { success: false, msg: '参数错误' });
+    
+    const user = memUsers[username];
+    if (!user) return send(res, 200, { success: false, msg: '用户不存在' });
+    
+    user.nickname = nickname;
+    saveUser(username);
+    return send(res, 200, { success: true });
+  }
+
   /* ====== 头像上传 ====== */
   if (req.method === 'POST' && url === '/api/avatar/upload') {
     const body = await readBody(req);
