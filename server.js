@@ -1,12 +1,8 @@
 const http = require('http');
-
-/* ============ 数据存储 ============ */
-/* 使用内存存储 + 文件存储双模式 */
-/* Render上文件可能丢失，内存保证当前会话可用 */
-
 const fs = require('fs');
 const path = require('path');
 
+/* ============ 数据存储 ============ */
 const DATA_DIR = (() => {
   const dirs = ['/tmp/wuliao-data', path.join(__dirname, 'data')];
   for (const d of dirs) {
@@ -24,21 +20,35 @@ const DATA_DIR = (() => {
 const USERS_DIR = DATA_DIR ? path.join(DATA_DIR, 'users') : null;
 const FRIENDS_DIR = DATA_DIR ? path.join(DATA_DIR, 'friends') : null;
 const MSG_DIR = DATA_DIR ? path.join(DATA_DIR, 'messages') : null;
+const REQ_DIR = DATA_DIR ? path.join(DATA_DIR, 'friend-requests') : null;
+const MOMENTS_DIR = DATA_DIR ? path.join(DATA_DIR, 'moments') : null;
+const MOMENT_LIKES_DIR = DATA_DIR ? path.join(DATA_DIR, 'moment-likes') : null;
+const MOMENT_COMMENTS_DIR = DATA_DIR ? path.join(DATA_DIR, 'moment-comments') : null;
 
 if (DATA_DIR) {
-  [USERS_DIR, FRIENDS_DIR, MSG_DIR].forEach(d => {
+  [USERS_DIR, FRIENDS_DIR, MSG_DIR, REQ_DIR, MOMENTS_DIR, MOMENT_LIKES_DIR, MOMENT_COMMENTS_DIR].forEach(d => {
     try { fs.mkdirSync(d, { recursive: true }); } catch (e) {}
   });
 }
 
-/* 内存存储（备份） */
+/* 内存存储 */
 let memUsers = {};
 let memFriends = {};
 let memMsgs = {};
+let memRequests = { incoming: {}, outgoing: {} };
+let memMoments = [];
+let memMomentLikes = {};
+let memMomentComments = {};
 
+/* ============ 文件工具 ============ */
 function userFile(u) { return path.join(USERS_DIR, u + '.json'); }
 function friendsFile(u) { return path.join(FRIENDS_DIR, u + '.json'); }
 function msgFile(a, b) { return path.join(MSG_DIR, [a, b].sort().join('__') + '.json'); }
+function incomingReqFile(u) { return path.join(REQ_DIR, u + '_in.json'); }
+function outgoingReqFile(u) { return path.join(REQ_DIR, u + '_out.json'); }
+function momentsFile() { return path.join(MOMENTS_DIR, 'all.json'); }
+function momentLikesFile(id) { return path.join(MOMENT_LIKES_DIR, id + '.json'); }
+function momentCommentsFile(id) { return path.join(MOMENT_COMMENTS_DIR, id + '.json'); }
 
 function readJSON(file, def) {
   if (!file || !DATA_DIR) return def;
@@ -108,6 +118,116 @@ function addFriend(a, b) {
   if (!fb.includes(a)) { fb.push(a); saveFriends(b, fb); }
 }
 
+function removeFriend(a, b) {
+  const fa = getFriends(a).filter(x => x !== b);
+  const fb = getFriends(b).filter(x => x !== a);
+  saveFriends(a, fa);
+  saveFriends(b, fb);
+}
+
+function areFriends(a, b) {
+  return getFriends(a).includes(b) && getFriends(b).includes(a);
+}
+
+/* ============ 好友请求 ============ */
+function getIncomingRequests(username) {
+  if (DATA_DIR) {
+    const r = readJSON(incomingReqFile(username), null);
+    if (r) return r;
+  }
+  return memRequests.incoming[username] || [];
+}
+
+function getOutgoingRequests(username) {
+  if (DATA_DIR) {
+    const r = readJSON(outgoingReqFile(username), null);
+    if (r) return r;
+  }
+  return memRequests.outgoing[username] || [];
+}
+
+function saveIncomingRequests(username, list) {
+  memRequests.incoming[username] = list;
+  if (DATA_DIR) writeJSON(incomingReqFile(username), list);
+}
+
+function saveOutgoingRequests(username, list) {
+  memRequests.outgoing[username] = list;
+  if (DATA_DIR) writeJSON(outgoingReqFile(username), list);
+}
+
+function sendFriendRequest(from, to, message) {
+  const incoming = getIncomingRequests(to);
+  const outgoing = getOutgoingRequests(from);
+  
+  const existing = incoming.find(r => r.from === from && r.status === 'pending');
+  if (existing) return { success: false, msg: '已发送过好友请求' };
+  
+  const req = {
+    id: 'req_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    from,
+    to,
+    message: message || '',
+    status: 'pending',
+    createdAt: Date.now()
+  };
+  
+  incoming.unshift(req);
+  outgoing.unshift(req);
+  saveIncomingRequests(to, incoming);
+  saveOutgoingRequests(from, outgoing);
+  
+  return { success: true, request: req };
+}
+
+function acceptFriendRequest(username, requestId) {
+  const incoming = getIncomingRequests(username);
+  const idx = incoming.findIndex(r => r.id === requestId);
+  if (idx === -1) return { success: false, msg: '请求不存在' };
+  
+  const req = incoming[idx];
+  if (req.status !== 'pending') return { success: false, msg: '请求已处理' };
+  
+  req.status = 'accepted';
+  req.handledAt = Date.now();
+  incoming[idx] = req;
+  saveIncomingRequests(username, incoming);
+  
+  const outgoing = getOutgoingRequests(req.from);
+  const oidx = outgoing.findIndex(r => r.id === requestId);
+  if (oidx !== -1) {
+    outgoing[oidx] = req;
+    saveOutgoingRequests(req.from, outgoing);
+  }
+  
+  addFriend(req.from, username);
+  
+  return { success: true, request: req };
+}
+
+function rejectFriendRequest(username, requestId) {
+  const incoming = getIncomingRequests(username);
+  const idx = incoming.findIndex(r => r.id === requestId);
+  if (idx === -1) return { success: false, msg: '请求不存在' };
+  
+  const req = incoming[idx];
+  if (req.status !== 'pending') return { success: false, msg: '请求已处理' };
+  
+  req.status = 'rejected';
+  req.handledAt = Date.now();
+  incoming[idx] = req;
+  saveIncomingRequests(username, incoming);
+  
+  const outgoing = getOutgoingRequests(req.from);
+  const oidx = outgoing.findIndex(r => r.id === requestId);
+  if (oidx !== -1) {
+    outgoing[oidx] = req;
+    saveOutgoingRequests(req.from, outgoing);
+  }
+  
+  return { success: true, request: req };
+}
+
 /* ============ 消息操作 ============ */
 function getMsgs(a, b) {
   if (DATA_DIR) {
@@ -120,8 +240,6 @@ function getMsgs(a, b) {
 
 function addMsg(from, to, content) {
   const msg = { from, to, content, time: Date.now() };
-  
-  /* 同时写入内存和文件 */
   const key = [from, to].sort().join('__');
   if (!memMsgs[key]) memMsgs[key] = [];
   memMsgs[key].push(msg);
@@ -130,11 +248,124 @@ function addMsg(from, to, content) {
     const file = msgFile(from, to);
     const existing = readJSON(file, []);
     existing.push(msg);
-    const result = writeJSON(file, existing);
-    console.log('[DEBUG] Message saved to file:', result, 'file:', file, 'total msgs:', existing.length);
+    writeJSON(file, existing);
   }
   
   return msg;
+}
+
+/* ============ 朋友圈 ============ */
+function getAllMoments() {
+  if (DATA_DIR) {
+    const m = readJSON(momentsFile(), null);
+    if (m) return m;
+  }
+  return memMoments;
+}
+
+function saveAllMoments(list) {
+  memMoments = list;
+  if (DATA_DIR) writeJSON(momentsFile(), list);
+}
+
+function getMomentLikes(momentId) {
+  if (DATA_DIR) {
+    const l = readJSON(momentLikesFile(momentId), null);
+    if (l) return l;
+  }
+  return memMomentLikes[momentId] || [];
+}
+
+function saveMomentLikes(momentId, list) {
+  memMomentLikes[momentId] = list;
+  if (DATA_DIR) writeJSON(momentLikesFile(momentId), list);
+}
+
+function getMomentComments(momentId) {
+  if (DATA_DIR) {
+    const c = readJSON(momentCommentsFile(momentId), null);
+    if (c) return c;
+  }
+  return memMomentComments[momentId] || [];
+}
+
+function saveMomentComments(momentId, list) {
+  memMomentComments[momentId] = list;
+  if (DATA_DIR) writeJSON(momentCommentsFile(momentId), list);
+}
+
+function createMoment(username, content, images, hideFrom) {
+  const moment = {
+    id: 'mom_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    author: username,
+    content: content || '',
+    images: images || [],
+    hideFrom: hideFrom || [],
+    createdAt: Date.now()
+  };
+  
+  const all = getAllMoments();
+  all.unshift(moment);
+  saveAllMoments(all);
+  saveMomentLikes(moment.id, []);
+  saveMomentComments(moment.id, []);
+  
+  return moment;
+}
+
+function getMomentsForUser(username) {
+  const all = getAllMoments();
+  const userFriends = getFriends(username);
+  
+  return all.filter(m => {
+    if (m.author === username) return true;
+    if (!userFriends.includes(m.author)) return false;
+    if (m.hideFrom && m.hideFrom.includes(username)) return false;
+    return true;
+  });
+}
+
+function likeMoment(momentId, username) {
+  const likes = getMomentLikes(momentId);
+  const idx = likes.indexOf(username);
+  if (idx === -1) {
+    likes.push(username);
+  } else {
+    likes.splice(idx, 1);
+  }
+  saveMomentLikes(momentId, likes);
+  return likes;
+}
+
+function addMomentComment(momentId, username, content, replyTo) {
+  const comments = getMomentComments(momentId);
+  const comment = {
+    id: 'cmt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    from: username,
+    replyTo: replyTo || null,
+    content,
+    createdAt: Date.now()
+  };
+  comments.push(comment);
+  saveMomentComments(momentId, comments);
+  return comment;
+}
+
+function deleteMomentComment(momentId, commentId, username) {
+  const comments = getMomentComments(momentId);
+  const idx = comments.findIndex(c => c.id === commentId);
+  if (idx === -1) return { success: false, msg: '评论不存在' };
+  
+  const comment = comments[idx];
+  const all = getAllMoments();
+  const moment = all.find(m => m.id === momentId);
+  if (comment.from !== username && (!moment || moment.author !== username)) {
+    return { success: false, msg: '无权限删除' };
+  }
+  
+  comments.splice(idx, 1);
+  saveMomentComments(momentId, comments);
+  return { success: true };
 }
 
 /* ============ 默认数据 ============ */
@@ -155,8 +386,14 @@ function initDefaultData() {
   DEFAULT_USERS.forEach(u => {
     saveUser(u);
     saveFriends(u.username, []);
+    saveIncomingRequests(u.username, []);
+    saveOutgoingRequests(u.username, []);
   });
   addFriend('alice', 'bob');
+  
+  createMoment('alice', '今天天气真好~', [], []);
+  createMoment('bob', '你好世界', [], []);
+  
   console.log('[INFO] Default data initialized');
 }
 initDefaultData();
@@ -190,16 +427,16 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 200, { ok: true });
 
   const url = req.url.split('?')[0];
-  console.log('[REQ]', req.method, url);
 
   /* ====== 健康检查 ====== */
-  if (req.method === 'GET' && (url === '/' || url === '/api' || url === '/api/health')) {
+  if (req.method === 'GET' && (url === '/api' || url === '/api/health')) {
     return send(res, 200, {
       ok: true,
       service: 'wuliao-chat',
-      version: '2.0',
+      version: '3.0',
       dataDir: DATA_DIR,
-      userCount: getAllUsers().length
+      userCount: getAllUsers().length,
+      momentCount: getAllMoments().length
     });
   }
 
@@ -214,7 +451,8 @@ const server = http.createServer(async (req, res) => {
     const user = { username, password, nickname, avatar: avatar || 1, bio: '', createdAt: Date.now() };
     saveUser(user);
     saveFriends(username, []);
-    console.log('[OK] Registered:', username);
+    saveIncomingRequests(username, []);
+    saveOutgoingRequests(username, []);
     return send(res, 200, { success: true, user });
   }
 
@@ -224,22 +462,57 @@ const server = http.createServer(async (req, res) => {
     const { username, password } = body;
     const user = getUser(username);
     if (!user || user.password !== password) return send(res, 200, { success: false, msg: '无聊号或密码错误' });
-    console.log('[OK] Login:', username);
     return send(res, 200, { success: true, user });
   }
 
-  /* ====== 添加好友 ====== */
-  if (req.method === 'POST' && url === '/api/add-friend') {
+  /* ====== 发送好友请求 ====== */
+  if (req.method === 'POST' && url === '/api/friend-request/send') {
     const body = await readBody(req);
-    const { from, to } = body;
+    const { from, to, message } = body;
+    if (!from || !to) return send(res, 200, { success: false, msg: '参数错误' });
     if (from === to) return send(res, 200, { success: false, msg: '不能添加自己为好友' });
-    const target = getUser(to);
-    if (!target) return send(res, 200, { success: false, msg: '用户不存在' });
-    const friendsList = getFriends(from);
-    if (friendsList.includes(to)) return send(res, 200, { success: false, msg: '你们已经是好友了' });
-    addFriend(from, to);
-    console.log('[OK] Friend added:', from, '->', to);
-    return send(res, 200, { success: true, target });
+    if (!getUser(to)) return send(res, 200, { success: false, msg: '用户不存在' });
+    if (areFriends(from, to)) return send(res, 200, { success: false, msg: '你们已经是好友了' });
+    const result = sendFriendRequest(from, to, message);
+    return send(res, 200, result);
+  }
+
+  /* ====== 收到的好友请求 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/friend-requests/incoming/')) {
+    const username = decodeURIComponent(url.slice(30));
+    const requests = getIncomingRequests(username);
+    const withUsers = await Promise.all(requests.map(async r => ({
+      ...r,
+      fromUser: getUser(r.from)
+    })));
+    return send(res, 200, { success: true, requests: withUsers });
+  }
+
+  /* ====== 发出的好友请求 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/friend-requests/outgoing/')) {
+    const username = decodeURIComponent(url.slice(30));
+    const requests = getOutgoingRequests(username);
+    const withUsers = await Promise.all(requests.map(async r => ({
+      ...r,
+      toUser: getUser(r.to)
+    })));
+    return send(res, 200, { success: true, requests: withUsers });
+  }
+
+  /* ====== 接受好友请求 ====== */
+  if (req.method === 'POST' && url === '/api/friend-request/accept') {
+    const body = await readBody(req);
+    const { username, requestId } = body;
+    const result = acceptFriendRequest(username, requestId);
+    return send(res, 200, result);
+  }
+
+  /* ====== 拒绝好友请求 ====== */
+  if (req.method === 'POST' && url === '/api/friend-request/reject') {
+    const body = await readBody(req);
+    const { username, requestId } = body;
+    const result = rejectFriendRequest(username, requestId);
+    return send(res, 200, result);
   }
 
   /* ====== 获取用户信息 ====== */
@@ -258,6 +531,15 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { success: true, friends });
   }
 
+  /* ====== 删除好友 ====== */
+  if (req.method === 'POST' && url === '/api/friend/delete') {
+    const body = await readBody(req);
+    const { from, to } = body;
+    if (!from || !to) return send(res, 200, { success: false, msg: '参数错误' });
+    removeFriend(from, to);
+    return send(res, 200, { success: true });
+  }
+
   /* ====== 获取消息 ====== */
   if (req.method === 'GET' && url.startsWith('/api/messages/')) {
     const parts = url.slice(14).split('/');
@@ -265,7 +547,6 @@ const server = http.createServer(async (req, res) => {
       const a = decodeURIComponent(parts[0]);
       const b = decodeURIComponent(parts[1]);
       const msgs = getMsgs(a, b);
-      console.log('[OK] GetMsgs:', a, '<->', b, 'count:', msgs.length);
       return send(res, 200, { success: true, messages: msgs });
     }
     return send(res, 200, { success: true, messages: [] });
@@ -275,26 +556,82 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/messages/send') {
     const body = await readBody(req);
     const { from, to, content } = body;
-    console.log('[MSG] Send request:', { from, to, content: content?.substring(0, 20) });
-    
     if (!from || !to || !content) return send(res, 200, { success: false, msg: '参数错误' });
-    
-    const fromUser = getUser(from);
-    const toUser = getUser(to);
-    if (!fromUser) return send(res, 200, { success: false, msg: '发送者不存在' });
-    if (!toUser) return send(res, 200, { success: false, msg: '接收者不存在' });
-    
-    const friendsList = getFriends(from);
-    if (!friendsList.includes(to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
-    
+    if (!getUser(from) || !getUser(to)) return send(res, 200, { success: false, msg: '用户不存在' });
+    if (!areFriends(from, to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
     const msg = addMsg(from, to, content);
-    console.log('[OK] Message saved:', msg.from, '->', msg.to, 'time:', msg.time);
-    
-    /* 验证消息确实保存了 */
-    const verify = getMsgs(from, to);
-    console.log('[VERIFY] Total messages now:', verify.length);
-    
-    return send(res, 200, { success: true, message: msg, totalMessages: verify.length });
+    return send(res, 200, { success: true, message: msg });
+  }
+
+  /* ====== 发布朋友圈 ====== */
+  if (req.method === 'POST' && url === '/api/moments/create') {
+    const body = await readBody(req);
+    const { username, content, images, hideFrom } = body;
+    if (!username) return send(res, 200, { success: false, msg: '参数错误' });
+    if (!getUser(username)) return send(res, 200, { success: false, msg: '用户不存在' });
+    if (!content && (!images || images.length === 0)) {
+      return send(res, 200, { success: false, msg: '内容不能为空' });
+    }
+    const moment = createMoment(username, content || '', images || [], hideFrom || []);
+    return send(res, 200, { success: true, moment });
+  }
+
+  /* ====== 获取朋友圈列表 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/moments/')) {
+    const username = decodeURIComponent(url.slice(13));
+    const moments = getMomentsForUser(username);
+    const withDetails = await Promise.all(moments.map(async m => {
+      const author = getUser(m.author);
+      const likes = getMomentLikes(m.id);
+      const comments = getMomentComments(m.id);
+      const commentWithUsers = comments.map(c => ({
+        ...c,
+        fromUser: getUser(c.from),
+        replyToUser: c.replyTo ? getUser(c.replyTo) : null
+      }));
+      return { ...m, author, likes, comments: commentWithUsers };
+    }));
+    return send(res, 200, { success: true, moments: withDetails });
+  }
+
+  /* ====== 点赞朋友圈 ====== */
+  if (req.method === 'POST' && url === '/api/moments/like') {
+    const body = await readBody(req);
+    const { momentId, username } = body;
+    if (!momentId || !username) return send(res, 200, { success: false, msg: '参数错误' });
+    const likes = likeMoment(momentId, username);
+    return send(res, 200, { success: true, likes });
+  }
+
+  /* ====== 评论朋友圈 ====== */
+  if (req.method === 'POST' && url === '/api/moments/comment') {
+    const body = await readBody(req);
+    const { momentId, username, content, replyTo } = body;
+    if (!momentId || !username || !content) return send(res, 200, { success: false, msg: '参数错误' });
+    const comment = addMomentComment(momentId, username, content, replyTo);
+    return send(res, 200, { success: true, comment });
+  }
+
+  /* ====== 删除评论 ====== */
+  if (req.method === 'POST' && url === '/api/moments/comment/delete') {
+    const body = await readBody(req);
+    const { momentId, commentId, username } = body;
+    const result = deleteMomentComment(momentId, commentId, username);
+    return send(res, 200, result);
+  }
+
+  /* ====== 删除朋友圈 ====== */
+  if (req.method === 'POST' && url === '/api/moments/delete') {
+    const body = await readBody(req);
+    const { momentId, username } = body;
+    if (!momentId || !username) return send(res, 200, { success: false, msg: '参数错误' });
+    const all = getAllMoments();
+    const idx = all.findIndex(m => m.id === momentId);
+    if (idx === -1) return send(res, 200, { success: false, msg: '动态不存在' });
+    if (all[idx].author !== username) return send(res, 200, { success: false, msg: '无权限删除' });
+    all.splice(idx, 1);
+    saveAllMoments(all);
+    return send(res, 200, { success: true });
   }
 
   /* ====== 调试端点 ====== */
@@ -304,23 +641,55 @@ const server = http.createServer(async (req, res) => {
       try { msgFiles = fs.readdirSync(MSG_DIR).filter(f => f.endsWith('.json')); } catch (e) {}
     }
     return send(res, 200, {
-      version: '2.0',
+      version: '3.0',
       dataDir: DATA_DIR,
       users: getAllUsers().map(u => u.username),
-      msgFiles: msgFiles,
-      memMsgsKeys: Object.keys(memMsgs)
+      msgFiles,
+      momentCount: getAllMoments().length
     });
   }
 
-  send(res, 404, { error: 'Not found', url: url });
+  /* ====== 静态文件服务 ====== */
+  if (req.method === 'GET') {
+    let filePath = url === '/' ? '/index.html' : url;
+    const fullPath = path.join(__dirname, 'public', filePath);
+    
+    const publicDir = path.join(__dirname, 'public');
+    if (fullPath.startsWith(publicDir) && fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+      const ext = path.extname(fullPath).toLowerCase();
+      const contentTypes = {
+        '.html': 'text/html; charset=utf-8',
+        '.css': 'text/css; charset=utf-8',
+        '.js': 'application/javascript; charset=utf-8',
+        '.json': 'application/json; charset=utf-8',
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon'
+      };
+      const contentType = contentTypes[ext] || 'application/octet-stream';
+      const content = fs.readFileSync(fullPath);
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Content-Length': Buffer.byteLength(content)
+      });
+      res.end(content);
+      return;
+    }
+  }
+
+  send(res, 404, { error: 'Not found', url });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log('========================================');
-  console.log('[INFO] 无聊聊天服务已启动');
+  console.log('[INFO] 无聊聊天服务 v3.0');
   console.log('[INFO] 端口:', PORT);
   console.log('[INFO] 数据目录:', DATA_DIR || '仅内存');
   console.log('[INFO] 用户数:', getAllUsers().length);
+  console.log('[INFO] 朋友圈数:', getAllMoments().length);
   console.log('========================================');
 });

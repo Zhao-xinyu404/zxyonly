@@ -697,6 +697,536 @@
   .av-6{background:linear-gradient(135deg,#ec4899,#f472b6);}
   .av-7{background:linear-gradient(135deg,#14b8a6,#5eead4);}
   .av-8{background:linear-gradient(135deg,#64748b,#94a3b8);}
+
+  /* 新的朋友页 */
+  #new-friends-view{
+    position:absolute;
+    inset:0;
+    background:var(--bg);
+    display:none;
+    flex-direction:column;
+    z-index:50;
+    transform:translateX(100%);
+    transition:transform .28s cubic-bezier(.2,.8,.2,1);
+  }
+  #new-friends-view.show{
+    display:flex;
+    transform:translateX(0);
+  }
+  .nf-content{
+    flex:1;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  .nf-item{
+    display:flex;align-items:center;gap:12px;
+    padding:14px 16px;
+    background:#fff;
+    border-bottom:1px solid var(--line);
+  }
+  .nf-item .avatar{
+    width:48px;height:48px;border-radius:8px;
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:18px;font-weight:600;
+  }
+  .nf-item .info{flex:1;min-width:0;}
+  .nf-item .info .name{
+    font-size:16px;font-weight:500;color:var(--text);
+  }
+  .nf-item .info .msg{
+    font-size:13px;color:var(--text-2);
+    margin-top:3px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .nf-item .btn{
+    padding:6px 14px;
+    border-radius:6px;
+    font-size:14px;
+    border:none;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .nf-item .btn.accept{
+    background:var(--brand);
+    color:#fff;
+  }
+  .nf-item .btn.accept:active{opacity:.8;}
+  .nf-item .btn.reject{
+    background:#f0f0f0;
+    color:var(--text-2);
+    margin-left:8px;
+  }
+  .nf-item .btn.accepted{
+    background:#f0f0f0;
+    color:var(--text-2);
+  }
+  .nf-section-title{
+    background:#ededed;color:var(--text-2);
+    padding:8px 16px;font-size:13px;
+    font-weight:500;
+  }
+
+  /* 朋友圈页 */
+  #moments-view{
+    position:absolute;
+    inset:0;
+    background:#fff;
+    display:none;
+    flex-direction:column;
+    z-index:50;
+    transform:translateX(100%);
+    transition:transform .28s cubic-bezier(.2,.8,.2,1);
+  }
+  #moments-view.show{
+    display:flex;
+    transform:translateX(0);
+  }
+  .moments-header{
+    flex-shrink:0;
+    background:transparent;
+    padding:30px 8px 10px;
+    display:flex;align-items:center;gap:6px;
+    position:absolute;
+    top:0;left:0;right:0;
+    z-index:10;
+  }
+  .moments-header .icon-btn{
+    width:36px;height:36px;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:20px;background:none;border:none;cursor:pointer;
+    border-radius:8px;
+    text-shadow:0 1px 3px rgba(0,0,0,0.3);
+  }
+  .moments-header h3{
+    flex:1;text-align:center;font-size:17px;font-weight:600;
+    color:#fff;
+    text-shadow:0 1px 3px rgba(0,0,0,0.3);
+  }
+  .moments-cover{
+    flex-shrink:0;
+    position:relative;
+    height:260px;
+    overflow:hidden;
+  }
+  .moments-cover-bg{
+    position:absolute;
+    inset:0;
+    background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+  }
+  .moments-user-info{
+    position:absolute;
+    bottom:-20px;
+    right:16px;
+    display:flex;
+    align-items:flex-end;
+    gap:12px;
+  }
+  .moments-user-name{
+    color:#fff;
+    font-size:17px;
+    font-weight:600;
+    text-shadow:0 1px 3px rgba(0,0,0,0.4);
+    margin-bottom:24px;
+  }
+  .moments-user-avatar{
+    width:68px;height:68px;
+    border-radius:10px;
+    border:3px solid #fff;
+    background:var(--brand);
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:28px;font-weight:600;
+    box-shadow:0 4px 12px rgba(0,0,0,0.15);
+  }
+  .moments-list{
+    flex:1;
+    overflow-y:auto;
+    padding-top:30px;
+    background:#fff;
+    -webkit-overflow-scrolling:touch;
+  }
+  .moment-item{
+    padding:16px;
+    border-bottom:1px solid var(--line);
+    display:flex;
+    gap:12px;
+  }
+  .moment-item .moment-avatar{
+    width:42px;height:42px;
+    border-radius:6px;
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:16px;font-weight:600;
+  }
+  .moment-item .moment-content{
+    flex:1;
+    min-width:0;
+  }
+  .moment-item .moment-name{
+    color:#576b95;
+    font-size:15px;
+    font-weight:500;
+    margin-bottom:6px;
+  }
+  .moment-item .moment-text{
+    font-size:15px;
+    color:var(--text);
+    line-height:1.5;
+    margin-bottom:8px;
+    word-break:break-word;
+  }
+  .moment-item .moment-images{
+    display:grid;
+    gap:4px;
+    margin-bottom:8px;
+  }
+  .moment-item .moment-images.single{grid-template-columns:1fr;max-width:240px;}
+  .moment-item .moment-images.double{grid-template-columns:1fr 1fr;max-width:240px;}
+  .moment-item .moment-images.triple{grid-template-columns:repeat(3,1fr);max-width:300px;}
+  .moment-item .moment-images.many{grid-template-columns:repeat(3,1fr);max-width:300px;}
+  .moment-item .moment-img{
+    width:100%;
+    aspect-ratio:1;
+    background:#f0f0f0;
+    border-radius:4px;
+    object-fit:cover;
+  }
+  .moment-item .moment-time{
+    font-size:12px;
+    color:var(--text-3);
+    display:flex;
+    align-items:center;
+    gap:10px;
+    position:relative;
+  }
+  .moment-item .moment-actions-btn{
+    background:#f5f5f5;
+    border:none;
+    padding:4px 10px;
+    border-radius:4px;
+    font-size:12px;
+    color:var(--text-2);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:4px;
+  }
+  .moment-item .moment-actions-menu{
+    position:absolute;
+    right:0;
+    bottom:30px;
+    background:#4c4c4c;
+    border-radius:6px;
+    display:none;
+    flex-direction:row;
+    padding:4px;
+    z-index:5;
+    box-shadow:0 2px 8px rgba(0,0,0,0.2);
+  }
+  .moment-item .moment-actions-menu.show{display:flex;}
+  .moment-item .moment-actions-menu::after{
+    content:'';
+    position:absolute;
+    bottom:-6px;
+    right:20px;
+    border:6px solid transparent;
+    border-top-color:#4c4c4c;
+  }
+  .moment-item .moment-actions-menu button{
+    background:none;
+    border:none;
+    color:#fff;
+    padding:6px 12px;
+    font-size:13px;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:4px;
+    border-radius:4px;
+  }
+  .moment-item .moment-actions-menu button:active{background:rgba(255,255,255,0.1);}
+  .moment-item .moment-likes{
+    background:#f7f7f7;
+    border-radius:4px;
+    padding:8px 10px;
+    margin-top:8px;
+    font-size:13px;
+    color:#576b95;
+    line-height:1.6;
+  }
+  .moment-item .moment-likes:empty{display:none;}
+  .moment-item .moment-comments{
+    background:#f7f7f7;
+    border-radius:4px;
+    padding:6px 10px;
+    margin-top:4px;
+  }
+  .moment-item .moment-comments:empty{display:none;}
+  .moment-item .moment-comment{
+    font-size:13px;
+    color:var(--text);
+    line-height:1.6;
+    padding:3px 0;
+  }
+  .moment-item .moment-comment .cmt-name{
+    color:#576b95;
+    font-weight:500;
+  }
+  .moment-item .comment-input-bar{
+    display:flex;
+    gap:8px;
+    margin-top:8px;
+    padding-top:8px;
+    border-top:1px solid var(--line);
+  }
+  .moment-item .comment-input-bar input{
+    flex:1;
+    border:1px solid var(--border);
+    border-radius:6px;
+    padding:8px 10px;
+    font-size:14px;
+    outline:none;
+  }
+  .moment-item .comment-input-bar input:focus{border-color:var(--brand);}
+  .moment-item .comment-input-bar button{
+    background:var(--brand);
+    color:#fff;
+    border:none;
+    padding:0 14px;
+    border-radius:6px;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .moment-item .comment-input-bar button:disabled{background:#9ed8b6;}
+
+  /* 发布朋友圈弹层 */
+  .post-moments-mask{
+    position:absolute;
+    inset:0;
+    background:rgba(0,0,0,0.5);
+    z-index:200;
+    display:none;
+    align-items:flex-end;
+    justify-content:center;
+  }
+  .post-moments-mask.show{display:flex;}
+  .post-moments-panel{
+    width:100%;
+    max-height:85%;
+    background:#fff;
+    border-radius:16px 16px 0 0;
+    display:flex;
+    flex-direction:column;
+    animation:slideUp .3s ease;
+  }
+  @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+  .post-moments-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 16px;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .post-moments-header .icon-btn{
+    width:32px;height:32px;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--text);font-size:18px;
+    background:none;border:none;cursor:pointer;
+  }
+  .post-moments-header span{
+    font-size:16px;
+    font-weight:600;
+  }
+  .post-moments-send{
+    background:var(--brand);
+    color:#fff;
+    border:none;
+    padding:6px 16px;
+    border-radius:6px;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .post-moments-send:disabled{background:#9ed8b6;}
+  .post-moments-body{
+    flex:1;
+    padding:16px;
+    overflow-y:auto;
+  }
+  .post-moments-body textarea{
+    width:100%;
+    min-height:120px;
+    border:none;
+    outline:none;
+    font-size:16px;
+    line-height:1.6;
+    resize:none;
+    font-family:inherit;
+  }
+  .post-images-preview{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:6px;
+    margin-top:12px;
+  }
+  .post-images-preview .preview-img{
+    width:100%;
+    aspect-ratio:1;
+    background:#f0f0f0;
+    border-radius:6px;
+    object-fit:cover;
+    position:relative;
+  }
+  .post-images-preview .preview-add{
+    width:100%;
+    aspect-ratio:1;
+    background:#f7f7f7;
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--text-3);
+    font-size:28px;
+    cursor:pointer;
+    border:1px dashed var(--border);
+  }
+  .post-images-preview .preview-del{
+    position:absolute;
+    top:-6px;
+    right:-6px;
+    width:20px;height:20px;
+    background:rgba(0,0,0,0.6);
+    color:#fff;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:12px;
+    cursor:pointer;
+  }
+  .post-moments-footer{
+    flex-shrink:0;
+    border-top:1px solid var(--line);
+    padding:12px 16px;
+  }
+  .post-moments-option{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:10px 0;
+    cursor:pointer;
+  }
+  .post-moments-option i{color:var(--text-2);font-size:16px;}
+  .post-moments-option span{font-size:15px;color:var(--text);}
+  .post-moments-option .post-option-value{
+    margin-left:auto;
+    color:var(--text-3);
+    font-size:14px;
+  }
+  .post-moments-option .fa-chevron-right{color:var(--text-3);font-size:12px;}
+
+  /* 屏蔽选择弹层 */
+  .hide-select-mask{
+    position:absolute;
+    inset:0;
+    background:rgba(0,0,0,0.5);
+    z-index:300;
+    display:none;
+    align-items:flex-end;
+    justify-content:center;
+  }
+  .hide-select-mask.show{display:flex;}
+  .hide-select-panel{
+    width:100%;
+    max-height:80%;
+    background:#fff;
+    border-radius:16px 16px 0 0;
+    display:flex;
+    flex-direction:column;
+    animation:slideUp .3s ease;
+  }
+  .hide-select-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:14px 16px;
+    border-bottom:1px solid var(--line);
+    flex-shrink:0;
+  }
+  .hide-select-header .icon-btn{
+    width:32px;height:32px;
+    display:flex;align-items:center;justify-content:center;
+    color:var(--text);font-size:18px;
+    background:none;border:none;cursor:pointer;
+  }
+  .hide-select-header span{
+    font-size:16px;
+    font-weight:600;
+  }
+  .hide-select-confirm{
+    background:var(--brand);
+    color:#fff;
+    border:none;
+    padding:6px 16px;
+    border-radius:6px;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .hide-select-search{
+    padding:10px 16px;
+    background:#f7f7f7;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-shrink:0;
+  }
+  .hide-select-search i{color:var(--text-3);font-size:14px;}
+  .hide-select-search input{
+    flex:1;
+    border:none;
+    background:transparent;
+    outline:none;
+    font-size:14px;
+  }
+  .hide-select-list{
+    flex:1;
+    overflow-y:auto;
+  }
+  .hide-select-item{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding:12px 16px;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .hide-select-item:active{background:#f5f5f5;}
+  .hide-select-item .avatar{
+    width:40px;height:40px;
+    border-radius:6px;
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:15px;font-weight:600;
+  }
+  .hide-select-item .name{
+    flex:1;
+    font-size:15px;
+  }
+  .hide-select-item .check{
+    width:22px;height:22px;
+    border:2px solid var(--border);
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+  }
+  .hide-select-item.selected .check{
+    background:var(--brand);
+    border-color:var(--brand);
+    color:#fff;
+    font-size:12px;
+  }
 </style>
 </head>
 <body>
@@ -791,8 +1321,17 @@
 
       <!-- ===== 通讯录 Tab ===== -->
       <div class="tab-panel" id="tab-contacts">
+        <div class="contacts-header-card" id="new-friends-card">
+          <div class="ic" style="background:#07c160;"><i class="fas fa-user-plus"></i></div>
+          <div style="flex:1;">
+            <div style="font-size:16px;color:var(--text);">新的朋友</div>
+            <div style="font-size:12px;color:var(--text-2);margin-top:2px;">好友请求</div>
+          </div>
+          <span class="badge" id="new-friend-badge" style="display:none;">0</span>
+          <i class="fas fa-chevron-right" style="color:var(--text-3);margin-left:8px;"></i>
+        </div>
         <div class="contacts-header-card" id="add-friend-card">
-          <div class="ic"><i class="fas fa-user-plus"></i></div>
+          <div class="ic"><i class="fas fa-search"></i></div>
           <div style="flex:1;">
             <div style="font-size:16px;color:var(--text);">添加朋友</div>
             <div style="font-size:12px;color:var(--text-2);margin-top:2px;">通过无聊号搜索添加</div>
@@ -827,7 +1366,7 @@
           </div>
         </div>
         <div class="discover-list">
-          <div class="list-row" onclick="toast('朋友圈 敬请期待')">
+          <div class="list-row" id="moments-entry">
             <div class="avatar"><i class="fas fa-camera" style="color:#fa9d3b;"></i></div>
             <div class="info"><div class="name">朋友圈</div></div>
             <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
@@ -877,7 +1416,7 @@
             <div class="info"><div class="name">收藏</div></div>
             <i class="fas fa-chevron-right arrow"></i>
           </div>
-          <div class="list-row" onclick="toast('朋友圈 敬请期待')">
+          <div class="list-row" id="profile-moments-entry">
             <div class="avatar" style="background:transparent;"><i class="fas fa-image" style="color:#fa5151;"></i></div>
             <div class="info"><div class="name">朋友圈</div></div>
             <i class="fas fa-chevron-right arrow"></i>
@@ -952,6 +1491,75 @@
     <div class="oa-content" id="oa-content"></div>
   </div>
 
+  <!-- ============ 新的朋友页 ============ -->
+  <div id="new-friends-view">
+    <div class="chat-detail-header">
+      <button class="icon-btn" id="new-friends-back"><i class="fas fa-chevron-left"></i></button>
+      <h3>新的朋友</h3>
+      <button class="icon-btn" onclick="openAddFriend()"><i class="fas fa-plus"></i></button>
+    </div>
+    <div class="nf-content" id="nf-content"></div>
+  </div>
+
+  <!-- ============ 朋友圈页 ============ -->
+  <div id="moments-view">
+    <div class="moments-header">
+      <button class="icon-btn" id="moments-back"><i class="fas fa-chevron-left"></i></button>
+      <h3>朋友圈</h3>
+      <button class="icon-btn" id="moments-camera-btn">
+        <i class="fas fa-camera"></i>
+      </button>
+    </div>
+    <div class="moments-cover">
+      <div class="moments-cover-bg"></div>
+      <div class="moments-user-info">
+        <div class="moments-user-name" id="moments-user-name"></div>
+        <div class="moments-user-avatar" id="moments-user-avatar"></div>
+      </div>
+    </div>
+    <div class="moments-list" id="moments-list"></div>
+  </div>
+
+  <!-- ============ 发布朋友圈弹层 ============ -->
+  <div class="post-moments-mask" id="post-moments-mask">
+    <div class="post-moments-panel">
+      <div class="post-moments-header">
+        <button class="icon-btn" id="post-moments-cancel"><i class="fas fa-times"></i></button>
+        <span id="post-moments-title">发文字</span>
+        <button class="post-moments-send" id="post-moments-send">发表</button>
+      </div>
+      <div class="post-moments-body">
+        <textarea id="post-moments-text" placeholder="这一刻的想法..."></textarea>
+        <div class="post-images-preview" id="post-images-preview" style="display:none;"></div>
+        <input type="file" id="post-image-input" accept="image/*" multiple style="display:none;">
+      </div>
+      <div class="post-moments-footer">
+        <div class="post-moments-option" id="post-moments-hide">
+          <i class="fas fa-eye-slash"></i>
+          <span>谁可以看</span>
+          <span class="post-option-value" id="post-hide-value">公开</span>
+          <i class="fas fa-chevron-right"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 屏蔽选择弹层 ============ -->
+  <div class="hide-select-mask" id="hide-select-mask">
+    <div class="hide-select-panel">
+      <div class="hide-select-header">
+        <button class="icon-btn" id="hide-select-cancel"><i class="fas fa-times"></i></button>
+        <span>不给谁看</span>
+        <button class="hide-select-confirm" id="hide-select-confirm">完成</button>
+      </div>
+      <div class="hide-select-search">
+        <i class="fas fa-search"></i>
+        <input type="text" id="hide-search-input" placeholder="搜索">
+      </div>
+      <div class="hide-select-list" id="hide-select-list"></div>
+    </div>
+  </div>
+
   <!-- ============ 模态框：添加好友 ============ -->
   <div class="modal-mask" id="add-friend-modal">
     <div class="modal">
@@ -988,10 +1596,7 @@
 
 <script>
 /* ============ 后端地址配置 ============ */
-// 部署到 GitHub Pages 时，把这里改成你服务器的后端地址
-// 例如：const API_BASE='https://your-server.com';
-// 本地开发时留空，表示用当前域名
-const API_BASE = 'https://wuliao-chat.onrender.com';
+const API_BASE = '';
 
 /* ============ API 调用 ============ */
 async function api(url, data, method='POST'){
@@ -1151,6 +1756,7 @@ function startPolling(){
       api(`/api/friends/${currentUser.username}`,'','GET').then(res=>{
         if(res.success) renderChatList();
       });
+      updateNewFriendBadge();
     }
   },2000);
 }
@@ -1325,16 +1931,15 @@ $('add-friend-confirm').onclick=async()=>{
     $('add-friend-hint').textContent='不能添加自己为好友';$('add-friend-hint').style.color='var(--danger)';
     return;
   }
-  const r=await api('/api/add-friend',{from:currentUser.username,to:target});
+  const r=await api('/api/friend-request/send',{from:currentUser.username,to:target,message:''});
   if(!r.success){
     $('add-friend-hint').textContent=r.msg;
     $('add-friend-hint').style.color='var(--danger)';
     return;
   }
   $('add-friend-modal').classList.remove('show');
-  toast('已添加 '+r.target.nickname+' 为好友');
+  toast('好友请求已发送，等待对方验证');
   renderAll();
-  setTimeout(()=>openChat(target),500);
 };
 
 /* ============ 公众号 ============ */
@@ -1394,9 +1999,9 @@ async function renderOfficialAccount(){
   const btn=$('oa-follow-btn');
   if(btn&&!isFriend){
     btn.onclick=async()=>{
-      const r=await api('/api/add-friend',{from:currentUser.username,to:OFFICIAL_ACCOUNT});
+      const r=await api('/api/friend-request/send',{from:currentUser.username,to:OFFICIAL_ACCOUNT,message:'关注公众号'});
       if(r.success){
-        toast('已关注 '+r.target.nickname);
+        toast('关注请求已发送');
         renderOfficialAccount();
         renderAll();
       }else{
@@ -1405,6 +2010,471 @@ async function renderOfficialAccount(){
     };
   }
 }
+
+/* ============ 新的朋友 ============ */
+function openNewFriends(){
+  $('new-friends-view').classList.add('show');
+  renderNewFriends();
+}
+$('new-friends-card').onclick=openNewFriends;
+$('new-friends-back').onclick=()=>$('new-friends-view').classList.remove('show');
+
+async function renderNewFriends(){
+  if(!currentUser) return;
+  const r=await api(`/api/friend-requests/incoming/${currentUser.username}`,'','GET');
+  const requests=r.success?r.requests:[];
+  
+  const pending=requests.filter(r=>r.status==='pending');
+  const handled=requests.filter(r=>r.status!=='pending');
+  
+  let html='';
+  
+  if(pending.length>0){
+    html+='<div class="nf-section-title">待处理</div>';
+    html+=pending.map(req=>{
+      const user=req.fromUser;
+      return `<div class="nf-item" data-req="${req.id}">
+        ${userAvatarHTML(user,user?.nickname)}
+        <div class="info">
+          <div class="name">${escapeHTML(user?.nickname||req.from)}</div>
+          <div class="msg">${escapeHTML(req.message||'请求添加你为好友')}</div>
+        </div>
+        <button class="btn accept" onclick="acceptFriendReq('${req.id}')">接受</button>
+        <button class="btn reject" onclick="rejectFriendReq('${req.id}')">拒绝</button>
+      </div>`;
+    }).join('');
+  }
+  
+  if(handled.length>0){
+    html+='<div class="nf-section-title">已处理</div>';
+    html+=handled.map(req=>{
+      const user=req.fromUser;
+      const statusText=req.status==='accepted'?'已添加':req.status==='rejected'?'已拒绝':'';
+      return `<div class="nf-item">
+        ${userAvatarHTML(user,user?.nickname)}
+        <div class="info">
+          <div class="name">${escapeHTML(user?.nickname||req.from)}</div>
+          <div class="msg">${escapeHTML(req.message||'请求添加你为好友')}</div>
+        </div>
+        <button class="btn accepted" disabled>${statusText}</button>
+      </div>`;
+    }).join('');
+  }
+  
+  if(requests.length===0){
+    html=`<div class="empty-state">
+      <i class="fas fa-user-plus"></i>
+      <p>暂无好友请求<br>去添加朋友开始聊天吧</p>
+    </div>`;
+  }
+  
+  $('nf-content').innerHTML=html;
+}
+
+async function acceptFriendReq(reqId){
+  const r=await api('/api/friend-request/accept',{username:currentUser.username,requestId:reqId});
+  if(r.success){
+    toast('已添加好友');
+    renderNewFriends();
+    renderAll();
+  }else{
+    toast(r.msg);
+  }
+}
+
+async function rejectFriendReq(reqId){
+  const r=await api('/api/friend-request/reject',{username:currentUser.username,requestId:reqId});
+  if(r.success){
+    toast('已拒绝');
+    renderNewFriends();
+  }else{
+    toast(r.msg);
+  }
+}
+
+async function updateNewFriendBadge(){
+  if(!currentUser) return;
+  const r=await api(`/api/friend-requests/incoming/${currentUser.username}`,'','GET');
+  const requests=r.success?r.requests:[];
+  const pending=requests.filter(r=>r.status==='pending');
+  const badge=$('new-friend-badge');
+  if(pending.length>0){
+    badge.style.display='inline-block';
+    badge.textContent=pending.length>99?'99+':pending.length;
+  }else{
+    badge.style.display='none';
+  }
+}
+
+/* ============ 朋友圈 ============ */
+let postImages=[];
+let postHideFrom=[];
+let isLongPress=false;
+let longPressTimer=null;
+
+function openMoments(){
+  $('moments-view').classList.add('show');
+  renderMoments();
+  renderMomentsHeader();
+}
+$('moments-entry').onclick=openMoments;
+$('profile-moments-entry').onclick=openMoments;
+$('moments-back').onclick=()=>$('moments-view').classList.remove('show');
+
+function renderMomentsHeader(){
+  if(!currentUser) return;
+  $('moments-user-name').textContent=currentUser.nickname;
+  const av=$('moments-user-avatar');
+  av.className='moments-user-avatar av-'+(currentUser.avatar||1);
+  av.innerHTML=`<i class="fas fa-${AV_ICONS[currentUser.avatar]||'paw'}"></i>`;
+}
+
+async function renderMoments(){
+  if(!currentUser) return;
+  const r=await api(`/api/moments/${currentUser.username}`,'','GET');
+  const moments=r.success?r.moments:[];
+  
+  if(moments.length===0){
+    $('moments-list').innerHTML=`<div class="empty-state" style="padding:80px 20px;">
+      <i class="fas fa-camera"></i>
+      <p>还没有动态<br>点击右上角相机发布第一条朋友圈</p>
+    </div>`;
+    return;
+  }
+  
+  $('moments-list').innerHTML=moments.map(m=>renderMomentItem(m)).join('');
+  
+  moments.forEach(m=>{
+    const actionsBtn=document.getElementById(`moment-actions-${m.id}`);
+    const actionsMenu=document.getElementById(`moment-menu-${m.id}`);
+    if(actionsBtn&&actionsMenu){
+      actionsBtn.onclick=(e)=>{
+        e.stopPropagation();
+        document.querySelectorAll('.moment-actions-menu').forEach(menu=>{
+          if(menu!==actionsMenu) menu.classList.remove('show');
+        });
+        actionsMenu.classList.toggle('show');
+      };
+    }
+    const likeBtn=document.getElementById(`moment-like-${m.id}`);
+    if(likeBtn){
+      likeBtn.onclick=()=>toggleLike(m.id);
+    }
+    const cmtBtn=document.getElementById(`moment-comment-${m.id}`);
+    if(cmtBtn){
+      cmtBtn.onclick=()=>showCommentInput(m.id);
+    }
+    const delBtn=document.getElementById(`moment-delete-${m.id}`);
+    if(delBtn){
+      delBtn.onclick=()=>deleteMoment(m.id);
+    }
+  });
+  
+  document.addEventListener('click',()=>{
+    document.querySelectorAll('.moment-actions-menu').forEach(menu=>{
+      menu.classList.remove('show');
+    });
+  });
+}
+
+function renderMomentItem(m){
+  const author=m.author||{};
+  const likes=m.likes||[];
+  const comments=m.comments||[];
+  const isLiked=likes.includes(currentUser.username);
+  const isAuthor=m.author===currentUser.username;
+  
+  let imagesHtml='';
+  if(m.images&&m.images.length>0){
+    const imgCount=m.images.length;
+    let gridClass='triple';
+    if(imgCount===1) gridClass='single';
+    else if(imgCount===2) gridClass='double';
+    else if(imgCount===3) gridClass='triple';
+    else gridClass='many';
+    
+    imagesHtml=`<div class="moment-images ${gridClass}">
+      ${m.images.slice(0,9).map(img=>`<img class="moment-img" src="${img}" alt="">`).join('')}
+    </div>`;
+  }
+  
+  let likesHtml='';
+  if(likes.length>0){
+    likesHtml=`<div class="moment-likes">
+      <i class="fas fa-heart" style="margin-right:4px;"></i>
+      ${likes.map(l=>escapeHTML(l)).join('、')}
+    </div>`;
+  }
+  
+  let commentsHtml='';
+  if(comments.length>0){
+    commentsHtml=`<div class="moment-comments">
+      ${comments.map(c=>`
+        <div class="moment-comment">
+          <span class="cmt-name">${escapeHTML(c.fromUser?.nickname||c.from)}</span>
+          ${c.replyTo?`<span>: 回复 </span><span class="cmt-name">${escapeHTML(c.replyToUser?.nickname||c.replyTo)}</span>`:''}
+          <span>: ${escapeHTML(c.content)}</span>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+  
+  const timeStr=formatMomentTime(m.createdAt);
+  
+  return `<div class="moment-item" data-id="${m.id}">
+    ${userAvatarHTML(author,author?.nickname)}
+    <div class="moment-content">
+      <div class="moment-name">${escapeHTML(author?.nickname||m.author)}</div>
+      ${m.content?`<div class="moment-text">${escapeHTML(m.content).replace(/\n/g,'<br>')}</div>`:''}
+      ${imagesHtml}
+      <div class="moment-time">
+        <span>${timeStr}</span>
+        <button class="moment-actions-btn" id="moment-actions-${m.id}">
+          <i class="fas fa-ellipsis"></i>
+        </button>
+        <div class="moment-actions-menu" id="moment-menu-${m.id}">
+          <button id="moment-like-${m.id}">
+            <i class="fa${isLiked?'s':'r'} fa-heart"></i> ${isLiked?'取消':'赞'}
+          </button>
+          <button id="moment-comment-${m.id}">
+            <i class="far fa-comment"></i> 评论
+          </button>
+          ${isAuthor?`<button id="moment-delete-${m.id}">
+            <i class="far fa-trash-alt"></i> 删除
+          </button>`:''}
+        </div>
+      </div>
+      ${likesHtml}
+      ${commentsHtml}
+      <div class="comment-input-bar" id="comment-bar-${m.id}" style="display:none;">
+        <input type="text" id="comment-input-${m.id}" placeholder="评论...">
+        <button onclick="submitComment('${m.id}')">发送</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function formatMomentTime(t){
+  const d=new Date(t);
+  const now=new Date();
+  const diff=now-d;
+  if(diff<60000) return '刚刚';
+  if(diff<3600000) return Math.floor(diff/60000)+'分钟前';
+  if(diff<86400000) return Math.floor(diff/3600000)+'小时前';
+  if(diff<172800000) return '昨天';
+  return (d.getMonth()+1)+'月'+d.getDate()+'日';
+}
+
+async function toggleLike(momentId){
+  const r=await api('/api/moments/like',{momentId,username:currentUser.username});
+  if(r.success){
+    renderMoments();
+  }else{
+    toast(r.msg);
+  }
+}
+
+function showCommentInput(momentId){
+  const bar=document.getElementById(`comment-bar-${momentId}`);
+  if(bar){
+    bar.style.display=bar.style.display==='none'?'flex':'none';
+    if(bar.style.display==='flex'){
+      const input=document.getElementById(`comment-input-${momentId}`);
+      if(input) input.focus();
+    }
+  }
+}
+
+async function submitComment(momentId){
+  const input=document.getElementById(`comment-input-${momentId}`);
+  const content=input?.value.trim();
+  if(!content) return;
+  const r=await api('/api/moments/comment',{momentId,username:currentUser.username,content});
+  if(r.success){
+    input.value='';
+    renderMoments();
+  }else{
+    toast(r.msg);
+  }
+}
+
+async function deleteMoment(momentId){
+  showConfirm('确定删除这条朋友圈吗？',async()=>{
+    const r=await api('/api/moments/delete',{momentId,username:currentUser.username});
+    if(r.success){
+      toast('已删除');
+      renderMoments();
+    }else{
+      toast(r.msg);
+    }
+  },'删除确认');
+}
+
+/* 发布朋友圈 */
+const cameraBtn=$('moments-camera-btn');
+
+cameraBtn.addEventListener('mousedown',startLongPress);
+cameraBtn.addEventListener('touchstart',startLongPress);
+cameraBtn.addEventListener('mouseup',endLongPress);
+cameraBtn.addEventListener('touchend',endLongPress);
+cameraBtn.addEventListener('mouseleave',cancelLongPress);
+
+function startLongPress(e){
+  e.preventDefault();
+  isLongPress=false;
+  longPressTimer=setTimeout(()=>{
+    isLongPress=true;
+    openPostMoments(false);
+  },500);
+}
+function endLongPress(e){
+  if(longPressTimer){
+    clearTimeout(longPressTimer);
+    longPressTimer=null;
+  }
+  if(!isLongPress){
+    openPostMoments(true);
+  }
+}
+function cancelLongPress(){
+  if(longPressTimer){
+    clearTimeout(longPressTimer);
+    longPressTimer=null;
+  }
+}
+
+function openPostMoments(withImage){
+  postImages=[];
+  postHideFrom=[];
+  $('post-moments-text').value='';
+  $('post-hide-value').textContent='公开';
+  $('post-images-preview').style.display='none';
+  $('post-images-preview').innerHTML='';
+  
+  if(withImage){
+    $('post-moments-title').textContent='发图片';
+    $('post-image-input').click();
+  }else{
+    $('post-moments-title').textContent='发文字';
+  }
+  
+  $('post-moments-mask').classList.add('show');
+}
+
+$('post-moments-cancel').onclick=()=>{
+  $('post-moments-mask').classList.remove('show');
+};
+
+$('post-image-input').addEventListener('change',function(e){
+  const files=Array.from(e.target.files||[]);
+  files.forEach(file=>{
+    if(postImages.length>=9) return;
+    const reader=new FileReader();
+    reader.onload=function(ev){
+      postImages.push(ev.target.result);
+      renderPostImages();
+    };
+    reader.readAsDataURL(file);
+  });
+  e.target.value='';
+});
+
+function renderPostImages(){
+  const preview=$('post-images-preview');
+  if(postImages.length===0){
+    preview.style.display='none';
+    return;
+  }
+  preview.style.display='grid';
+  let html=postImages.map((img,i)=>`
+    <div style="position:relative;">
+      <img class="preview-img" src="${img}" alt="">
+      <div class="preview-del" onclick="removePostImage(${i})"><i class="fas fa-times"></i></div>
+    </div>
+  `).join('');
+  if(postImages.length<9){
+    html+=`<div class="preview-add" onclick="$('post-image-input').click()"><i class="fas fa-plus"></i></div>`;
+  }
+  preview.innerHTML=html;
+}
+
+function removePostImage(idx){
+  postImages.splice(idx,1);
+  renderPostImages();
+}
+
+$('post-moments-send').onclick=async()=>{
+  const content=$('post-moments-text').value.trim();
+  if(!content&&postImages.length===0){
+    toast('内容不能为空');
+    return;
+  }
+  const btn=$('post-moments-send');
+  btn.disabled=true;
+  const r=await api('/api/moments/create',{
+    username:currentUser.username,
+    content,
+    images:postImages,
+    hideFrom:postHideFrom
+  });
+  btn.disabled=false;
+  if(r.success){
+    $('post-moments-mask').classList.remove('show');
+    toast('发布成功');
+    renderMoments();
+  }else{
+    toast(r.msg);
+  }
+};
+
+/* 屏蔽选择 */
+$('post-moments-hide').onclick=()=>{
+  renderHideSelectList();
+  $('hide-select-mask').classList.add('show');
+};
+
+$('hide-select-cancel').onclick=()=>{
+  $('hide-select-mask').classList.remove('show');
+};
+
+$('hide-select-confirm').onclick=()=>{
+  $('hide-select-mask').classList.remove('show');
+  $('post-hide-value').textContent=postHideFrom.length>0?`不给${postHideFrom.length}人看`:'公开';
+};
+
+async function renderHideSelectList(){
+  const r=await api(`/api/friends/${currentUser.username}`,'','GET');
+  const friends=r.success?r.friends:[];
+  const keyword=$('hide-search-input').value.trim().toLowerCase();
+  const filtered=friends.filter(f=>
+    f.nickname.toLowerCase().includes(keyword)||
+    f.username.toLowerCase().includes(keyword)
+  );
+  
+  $('hide-select-list').innerHTML=filtered.map(f=>{
+    const selected=postHideFrom.includes(f.username);
+    return `<div class="hide-select-item ${selected?'selected':''}" data-user="${f.username}">
+      ${userAvatarHTML(f,f.nickname)}
+      <div class="name">${escapeHTML(f.nickname)}</div>
+      <div class="check">${selected?'<i class="fas fa-check"></i>':''}</div>
+    </div>`;
+  }).join('');
+  
+  $('hide-select-list').querySelectorAll('.hide-select-item').forEach(item=>{
+    item.onclick=()=>{
+      const username=item.dataset.user;
+      const idx=postHideFrom.indexOf(username);
+      if(idx===-1){
+        postHideFrom.push(username);
+      }else{
+        postHideFrom.splice(idx,1);
+      }
+      renderHideSelectList();
+    };
+  });
+}
+
+$('hide-search-input').addEventListener('input',renderHideSelectList);
 
 /* ============ 表情选择器 ============ */
 const EMOJIS=[
@@ -1529,6 +2599,7 @@ function renderAll(){
   renderChatList();
   renderContacts();
   renderProfile();
+  updateNewFriendBadge();
 }
 
 /* ============ 初始化 ============ */
