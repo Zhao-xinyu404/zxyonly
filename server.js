@@ -566,14 +566,73 @@ async function testSupabaseConnection() {
 
 async function initDefaultData() {
   const sbOk = await testSupabaseConnection();
-  await loadFromSupabase();
+  
+  memUsers = {};
+  memFriends = {};
+  memMsgs = {};
+  memRequests = { incoming: {}, outgoing: {} };
+  memMoments = [];
+  memMomentLikes = {};
+  memMomentComments = {};
 
-  const all = getAllUsers();
-  if (all.length > 0) {
-    console.log('[INFO] Users exist:', all.length);
+  let sbLoaded = false;
+  if (supabaseEnabled()) {
+    try {
+      await loadFromSupabase();
+      sbLoaded = true;
+      console.log('[INFO] Data loaded from Supabase');
+    } catch (e) {
+      console.error('[WARN] Failed to load from Supabase:', e.message);
+    }
+  }
+
+  const sbUsers = getAllUsers();
+  if (sbLoaded && sbUsers.length > 0) {
+    console.log('[INFO] Users from Supabase:', sbUsers.length);
+    syncAllToFiles();
     return;
   }
-  
+
+  if (sbLoaded && sbUsers.length === 0) {
+    console.log('[INFO] Supabase empty, trying local files...');
+    if (DATA_DIR) {
+      try {
+        const files = fs.readdirSync(USERS_DIR).filter(f => f.endsWith('.json'));
+        if (files.length > 0) {
+          console.log('[INFO] Found', files.length, 'local users, syncing to Supabase...');
+          files.forEach(f => {
+            const u = readJSON(path.join(USERS_DIR, f), null);
+            if (u) {
+              memUsers[u.username] = u;
+              if (supabaseEnabled()) supabaseUpsert(u.username, 'users', u).catch(() => {});
+            }
+          });
+          
+          const friendFiles = fs.readdirSync(FRIENDS_DIR).filter(f => f.endsWith('.json'));
+          friendFiles.forEach(f => {
+            const username = f.replace('.json', '');
+            const list = readJSON(path.join(FRIENDS_DIR, f), []);
+            memFriends[username] = list;
+            if (supabaseEnabled()) supabaseUpsert(username, 'friends', list).catch(() => {});
+          });
+
+          const msgFiles = fs.readdirSync(MSG_DIR).filter(f => f.endsWith('.json'));
+          msgFiles.forEach(f => {
+            const key = f.replace('.json', '');
+            const list = readJSON(path.join(MSG_DIR, f), []);
+            memMsgs[key] = list;
+            if (supabaseEnabled()) supabaseUpsert(key, 'messages', list).catch(() => {});
+          });
+
+          console.log('[INFO] Local data synced to Supabase');
+          return;
+        }
+      } catch (e) {
+        console.error('[WARN] Failed to load from local files:', e.message);
+      }
+    }
+  }
+
   if (supabaseEnabled() && !sbOk) {
     console.error('[WARN] Supabase enabled but connection failed. Data will NOT persist across restarts!');
   }
