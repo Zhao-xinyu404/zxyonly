@@ -819,7 +819,8 @@
     color:#fff;font-size:15px;font-weight:600;
   }
   .msg .bubble{
-    max-width:64%;
+    max-width:70%;
+    min-width:40px;
     padding:10px 12px;
     border-radius:6px;
     font-size:15px;
@@ -827,6 +828,7 @@
     word-break:break-word;
     position:relative;
     box-shadow:0 1px 1px rgba(0,0,0,0.04);
+    flex-shrink:0;
   }
   .msg.other .bubble{background:#fff;color:var(--text);}
   .msg.other .bubble::before{
@@ -4528,6 +4530,7 @@ function closeCurrentView(){
     const el=$(v.id);
     if(el&&el.classList.contains('show')){
       if(v.id==='official-account-view') stopOAPolling();
+      if(v.id==='scanner-view') stopCamera();
       el.classList.remove('show');
       return;
     }
