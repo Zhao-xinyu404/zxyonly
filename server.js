@@ -952,45 +952,6 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { success: true, users });
   }
 
-  /* ====== Admin: 清空所有数据 ====== */
-  if (req.method === 'POST' && url === '/api/admin/clear-all') {
-    const body = await readBody(req);
-    const { username } = body;
-    if (username !== 'admin') return send(res, 200, { success: false, msg: '无权限' });
-
-    // 清空内存
-    memUsers = {};
-    memFriends = {};
-    memMsgs = {};
-    memRequests = { incoming: {}, outgoing: {} };
-    memMoments = [];
-    memMomentLikes = {};
-    memMomentComments = {};
-
-    // 清空 Supabase
-    if (supabaseEnabled()) {
-      try {
-        await supabaseRequest('/wuliao_data', 'DELETE');
-      } catch (e) { console.error('[Supabase] clear-all failed:', e.message); }
-    }
-
-    // 清空文件
-    if (DATA_DIR) {
-      try {
-        fs.rmSync(DATA_DIR, { recursive: true });
-        fs.mkdirSync(USERS_DIR, { recursive: true });
-        fs.mkdirSync(FRIENDS_DIR, { recursive: true });
-        fs.mkdirSync(MSG_DIR, { recursive: true });
-        fs.mkdirSync(REQ_DIR, { recursive: true });
-        fs.mkdirSync(MOMENTS_DIR, { recursive: true });
-        fs.mkdirSync(MOMENT_LIKES_DIR, { recursive: true });
-        fs.mkdirSync(MOMENT_COMMENTS_DIR, { recursive: true });
-      } catch (e) {}
-    }
-
-    return send(res, 200, { success: true, msg: '所有数据已清空' });
-  }
-
   /* ====== 头像上传 ====== */
   if (req.method === 'POST' && url === '/api/avatar/upload') {
     const body = await readBody(req);
@@ -1034,6 +995,104 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       console.error('[ERROR] Avatar upload failed:', e.message);
       return send(res, 200, { success: false, msg: '上传失败' });
+    }
+  }
+
+  /* ====== 百度搜索 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/search/baidu')) {
+    const q = new URL(req.url, 'http://localhost').searchParams;
+    const keyword = q.get('q') || '';
+    if (!keyword) return send(res, 200, { success: false, msg: '关键词不能为空' });
+
+    try {
+      const searchUrl = `https://www.baidu.com/s?wd=${encodeURIComponent(keyword)}`;
+      const results = await new Promise((resolve, reject) => {
+        const proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY || process.env.http_proxy || process.env.HTTP_PROXY;
+        const urlObj = new URL(searchUrl);
+        const opts = {
+          hostname: urlObj.hostname,
+          port: 443,
+          path: urlObj.pathname + urlObj.search,
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9',
+          }
+        };
+
+        if (proxyUrl) {
+          const proxy = new URL(proxyUrl);
+          const proxyMod = proxy.protocol === 'https:' ? https : http;
+          const connectOpts = {
+            method: 'CONNECT',
+            hostname: proxy.hostname,
+            port: proxy.port || (proxy.protocol === 'https:' ? 443 : 80),
+            path: `${urlObj.hostname}:443`,
+            headers: {}
+          };
+          const connectReq = proxyMod.request(connectOpts);
+          connectReq.on('connect', (res, socket) => {
+            if (res.statusCode !== 200) {
+              socket.destroy();
+              reject(new Error(`Proxy connect failed: ${res.statusCode}`));
+              return;
+            }
+            const tunnelReq = https.request({ ...opts, socket }, (res) => {
+              let data = '';
+              res.on('data', chunk => data += chunk);
+              res.on('end', () => resolve(data));
+            });
+            tunnelReq.on('error', reject);
+            tunnelReq.end();
+          });
+          connectReq.on('error', reject);
+          connectReq.end();
+        } else {
+          const req2 = https.request(opts, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => resolve(data));
+          });
+          req2.on('error', reject);
+          req2.end();
+        }
+      });
+
+      const items = [];
+      const resultRegex = /<div class="result[^"]*"[^>]*>[\s\S]*?<h3[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h3>[\s\S]*?(?:<div[^>]*class="[^"]*c-abstract[^"]*"[^>]*>([\s\S]*?)<\/div>)?/g;
+      let match;
+      while ((match = resultRegex.exec(results)) !== null && items.length < 10) {
+        const title = match[2].replace(/<[^>]+>/g, '').trim();
+        const link = match[1];
+        const abstract = match[3] ? match[3].replace(/<[^>]+>/g, '').trim() : '';
+        if (title) {
+          items.push({ title, link, abstract });
+        }
+      }
+
+      if (items.length === 0) {
+        const mobileRegex = /<div class="c-result[^"]*"[^>]*>[\s\S]*?<header[^>]*>[\s\S]*?<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/header>[\s\S]*?(?:<div[^>]*class="[^"]*c-abstract[^"]*"[^>]*>([\s\S]*?)<\/div>)?/g;
+        while ((match = mobileRegex.exec(results)) !== null && items.length < 10) {
+          const title = match[2].replace(/<[^>]+>/g, '').trim();
+          const link = match[1];
+          const abstract = match[3] ? match[3].replace(/<[^>]+>/g, '').trim() : '';
+          if (title) {
+            items.push({ title, link, abstract });
+          }
+        }
+      }
+
+      return send(res, 200, { success: true, items, keyword });
+    } catch (e) {
+      console.error('[ERROR] Baidu search failed:', e.message);
+      return send(res, 200, {
+        success: true,
+        items: [
+          { title: `${keyword} - 百度搜索`, link: `https://www.baidu.com/s?wd=${encodeURIComponent(keyword)}`, abstract: '点击跳转到百度搜索查看完整结果' }
+        ],
+        keyword
+      });
     }
   }
 
