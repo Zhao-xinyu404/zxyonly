@@ -694,7 +694,10 @@ const server = http.createServer(async (req, res) => {
       version: '3.1',
       dataDir: DATA_DIR,
       userCount: getAllUsers().length,
-      momentCount: getAllMoments().length
+      momentCount: getAllMoments().length,
+      supabaseEnabled: supabaseEnabled(),
+      supabaseUrl: SUPABASE_URL ? 'configured' : 'not set',
+      supabaseKey: SUPABASE_KEY ? 'configured' : 'not set'
     });
   }
 
