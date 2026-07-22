@@ -9,6 +9,6 @@
     "dev": "node server.js"
   },
   "dependencies": {
-    "sharp": "^0.33.4"
+    "sharp": "^0.33.5"
   }
 }

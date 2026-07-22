@@ -552,7 +552,20 @@ const DEFAULT_USERS = [
   { username: 'charlie', password: '1234', nickname: 'Charlie', avatar: 5, bio: 'hey', email: 'charlie@example.com', createdAt: Date.now() }
 ];
 
+async function testSupabaseConnection() {
+  if (!supabaseEnabled()) return false;
+  try {
+    await supabaseRequest('/wuliao_data', 'GET', null, { type: 'eq.users', limit: 1 });
+    console.log('[INFO] Supabase connection OK');
+    return true;
+  } catch (e) {
+    console.error('[ERROR] Supabase connection failed:', e.message);
+    return false;
+  }
+}
+
 async function initDefaultData() {
+  const sbOk = await testSupabaseConnection();
   await loadFromSupabase();
 
   const all = getAllUsers();
@@ -560,6 +573,11 @@ async function initDefaultData() {
     console.log('[INFO] Users exist:', all.length);
     return;
   }
+  
+  if (supabaseEnabled() && !sbOk) {
+    console.error('[WARN] Supabase enabled but connection failed. Data will NOT persist across restarts!');
+  }
+  
   console.log('[INFO] Initializing default users');
   DEFAULT_USERS.forEach(u => {
     saveUser(u);
@@ -936,13 +954,16 @@ const server = http.createServer(async (req, res) => {
       const avatarPath = path.join(AVATAR_DIR, avatarFileName);
       fs.writeFileSync(avatarPath, compressedBuffer);
       
+      const compressedBase64 = 'data:image/jpeg;base64,' + compressedBuffer.toString('base64');
       user.customAvatar = avatarFileName;
+      user.avatarData = compressedBase64;
       saveUser(user);
       
       return send(res, 200, {
         success: true,
         size: compressedBuffer.length,
-        originalSize: buffer.length
+        originalSize: buffer.length,
+        avatarData: compressedBase64
       });
     } catch (e) {
       console.error('[ERROR] Avatar upload failed:', e.message);
