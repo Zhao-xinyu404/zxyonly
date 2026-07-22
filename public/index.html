@@ -1042,6 +1042,17 @@
     display:flex;align-items:center;justify-content:center;
     color:#fff;font-size:16px;font-weight:600;
   }
+  .moment-item > .avatar{
+    width:42px !important;height:42px !important;
+    border-radius:6px;
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:16px;font-weight:600;
+    overflow:hidden;
+  }
+  .moment-item > .avatar img{
+    width:100%;height:100%;object-fit:cover;border-radius:6px;
+  }
   .moment-item .moment-content{
     flex:1;
     min-width:0;
@@ -1506,6 +1517,56 @@
     margin-top:4px;
   }
   .admin-clear-btn:active{opacity:.9;}
+
+  /* 功能管理 - iOS风格开关 */
+  .admin-toggle-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:12px 14px;
+    border-bottom:1px solid var(--line);
+  }
+  .admin-toggle-row:last-child{border-bottom:none;}
+  .admin-toggle-info{flex:1;min-width:0;padding-right:12px;}
+  .admin-toggle-info .name{
+    font-size:15px;font-weight:500;color:var(--text);
+  }
+  .admin-toggle-info .detail{
+    font-size:12px;color:var(--text-2);margin-top:3px;line-height:1.4;
+  }
+  .admin-switch{
+    position:relative;
+    display:inline-block;
+    width:48px;height:28px;
+    flex-shrink:0;
+    cursor:pointer;
+  }
+  .admin-switch input{
+    opacity:0;width:0;height:0;position:absolute;
+  }
+  .admin-slider{
+    position:absolute;
+    inset:0;
+    background:#e5e5e5;
+    border-radius:14px;
+    transition:background .25s;
+  }
+  .admin-slider::before{
+    content:'';
+    position:absolute;
+    width:24px;height:24px;
+    left:2px;top:2px;
+    background:#fff;
+    border-radius:50%;
+    box-shadow:0 2px 6px rgba(0,0,0,0.2);
+    transition:transform .25s;
+  }
+  .admin-switch input:checked + .admin-slider{
+    background:var(--brand);
+  }
+  .admin-switch input:checked + .admin-slider::before{
+    transform:translateX(20px);
+  }
 </style>
 </head>
 <body>
@@ -2146,6 +2207,7 @@ function enterMain(){
   switchTab('chat');
   startPolling();
   renderAll();
+  updateFeatureVisibility();
 }
 
 /* ============ 轮询获取新消息 ============ */
@@ -2398,6 +2460,9 @@ async function renderAdmin(){
   const ur=await api(`/api/admin/users?username=${currentUser.username}`,'','GET');
   const users=ur.success?ur.users:[];
 
+  const fr=await api(`/api/admin/feature-flags?username=${currentUser.username}`,'','GET');
+  const flags=fr.success?fr.flags:{scanEnabled:true};
+
   const statsHtml=`<div class="admin-stats">
     <div class="admin-stat-card">
       <div class="num">${users.length}</div>
@@ -2426,7 +2491,23 @@ async function renderAdmin(){
     `).join('')}
   </div>`;
 
-  $('admin-content').innerHTML=statsHtml+usersHtml+`
+  const featureHtml=`<div class="admin-section">
+    <div class="admin-section-title">
+      <span>功能管理</span>
+    </div>
+    <div class="admin-toggle-row">
+      <div class="admin-toggle-info">
+        <div class="name">扫一扫</div>
+        <div class="detail">允许用户使用扫一扫功能</div>
+      </div>
+      <label class="admin-switch">
+        <input type="checkbox" id="flag-scan" ${flags.scanEnabled?'checked':''} onchange="toggleFeature('scanEnabled',this.checked)">
+        <span class="admin-slider"></span>
+      </label>
+    </div>
+  </div>`;
+
+  $('admin-content').innerHTML=statsHtml+usersHtml+featureHtml+`
     <div class="admin-section">
       <div class="admin-section-title">
         <span>朋友圈管理</span>
@@ -2436,6 +2517,26 @@ async function renderAdmin(){
       </button>
     </div>
   `;
+}
+
+async function toggleFeature(name,value){
+  const r=await api('/api/admin/feature-flags',{username:currentUser.username,flags:{[name]:value}});
+  if(r.success){
+    toast(value?'已开启':'已关闭');
+    updateFeatureVisibility();
+  }else{
+    toast(r.msg);
+  }
+}
+
+async function updateFeatureVisibility(){
+  const r=await api('/api/feature-flags','','GET');
+  if(r.success&&r.flags){
+    const scanEntry=$('scan-entry');
+    if(scanEntry){
+      scanEntry.style.display=r.flags.scanEnabled===false?'none':'flex';
+    }
+  }
 }
 
 async function clearAllMoments(){

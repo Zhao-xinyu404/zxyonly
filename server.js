@@ -223,6 +223,7 @@ let memRequests = { incoming: {}, outgoing: {} };
 let memMoments = [];
 let memMomentLikes = {};
 let memMomentComments = {};
+let memFeatureFlags = { scanEnabled: true };
 
 /* ============ 文件工具 ============ */
 function userFile(u) { return path.join(USERS_DIR, u + '.json'); }
@@ -970,6 +971,28 @@ const server = http.createServer(async (req, res) => {
     memMoments = {};
     saveAllMoments([]);
     return send(res, 200, { success: true });
+  }
+
+  /* ====== Admin: 获取功能开关 ====== */
+  if (req.method === 'GET' && url === '/api/admin/feature-flags') {
+    const q = new URL(req.url, 'http://localhost').searchParams;
+    const username = q.get('username') || '';
+    if (username !== 'admin') return send(res, 200, { success: false, msg: '无权限' });
+    return send(res, 200, { success: true, flags: memFeatureFlags });
+  }
+
+  /* ====== Admin: 更新功能开关 ====== */
+  if (req.method === 'POST' && url === '/api/admin/feature-flags') {
+    const body = await readBody(req);
+    const { username, flags } = body;
+    if (username !== 'admin') return send(res, 200, { success: false, msg: '无权限' });
+    memFeatureFlags = { ...memFeatureFlags, ...flags };
+    return send(res, 200, { success: true, flags: memFeatureFlags });
+  }
+
+  /* ====== 获取功能开关（公开） ====== */
+  if (req.method === 'GET' && url === '/api/feature-flags') {
+    return send(res, 200, { success: true, flags: memFeatureFlags });
   }
 
   /* ====== 更新个人资料 ====== */
