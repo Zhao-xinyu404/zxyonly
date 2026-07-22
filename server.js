@@ -142,11 +142,24 @@ async function loadFromSupabase() {
   for (const type of Object.keys(typeMap)) {
     try {
       const rows = await supabaseSelect(type);
+      /* 新格式优先：先加载旧格式，再用新格式覆盖 */
+      const oldFmt = [];
+      const newFmt = [];
       for (const row of rows) {
-        const originalId = row.id.startsWith(type + '__') ? row.id.slice(type.length + 2) : row.id;
+        if (row.id.startsWith(type + '__')) {
+          newFmt.push(row);
+        } else {
+          oldFmt.push(row);
+        }
+      }
+      for (const row of oldFmt) {
+        typeMap[type](row.id, row.data);
+      }
+      for (const row of newFmt) {
+        const originalId = row.id.slice(type.length + 2);
         typeMap[type](originalId, row.data);
       }
-      console.log(`[INFO] Loaded ${rows.length} ${type} from Supabase`);
+      console.log(`[INFO] Loaded ${rows.length} ${type} from Supabase (new: ${newFmt.length}, old: ${oldFmt.length})`);
     } catch (e) {
       console.error(`[ERROR] Failed to load ${type} from Supabase:`, e.message);
     }

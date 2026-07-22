@@ -6,6 +6,7 @@
 <title>无聊 Chat</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <style>
   :root{
     --brand:#07c160;
@@ -382,6 +383,81 @@
     border-bottom:1px solid var(--line);
   }
   .search-more:hover{background:#f9f9f9;}
+
+  /* 扫一扫 */
+  #scanner-view{
+    position:absolute;top:0;left:0;right:0;bottom:0;
+    background:#000;
+    display:flex;flex-direction:column;
+    z-index:100;
+    transform:translateX(100%);
+    transition:transform .25s ease;
+  }
+  #scanner-view.show{transform:translateX(0);}
+  .scanner-header{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 16px;
+    background:rgba(0,0,0,0.5);
+    color:#fff;
+    flex-shrink:0;
+  }
+  .scanner-header h3{color:#fff;font-size:17px;}
+  .scanner-header .icon-btn{color:#fff;}
+  .scanner-body{
+    flex:1;position:relative;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+  }
+  #scanner-video{
+    width:100%;height:100%;
+    object-fit:cover;
+  }
+  .scanner-overlay{
+    position:absolute;top:0;left:0;right:0;bottom:0;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    pointer-events:none;
+  }
+  .scanner-frame{
+    width:220px;height:220px;
+    border:2px solid rgba(255,255,255,0.6);
+    border-radius:12px;
+    position:relative;
+    box-shadow:0 0 0 9999px rgba(0,0,0,0.5);
+  }
+  .scanner-frame::before,.scanner-frame::after{
+    content:'';position:absolute;
+    width:24px;height:24px;
+    border:3px solid var(--brand);
+  }
+  .scanner-frame::before{
+    top:-2px;left:-2px;
+    border-right:none;border-bottom:none;
+    border-radius:8px 0 0 0;
+  }
+  .scanner-frame::after{
+    bottom:-2px;right:-2px;
+    border-left:none;border-top:none;
+    border-radius:0 0 8px 0;
+  }
+  .scanner-tip{
+    color:#fff;font-size:13px;
+    margin-top:20px;opacity:0.8;
+  }
+  .scanner-result{
+    position:absolute;bottom:0;left:0;right:0;
+    background:#fff;
+    padding:20px 16px;
+    border-radius:16px 16px 0 0;
+    box-shadow:0 -4px 20px rgba(0,0,0,0.15);
+  }
+  .scanner-result-content p{
+    font-size:14px;color:var(--text);
+    margin-bottom:12px;
+    word-break:break-all;
+  }
+  .scanner-result .btn-primary{
+    width:100%;
+  }
 
   /* 无聊 Tab */
   .chat-search{
@@ -1590,22 +1666,17 @@
             <div class="info"><div class="name">朋友圈</div></div>
             <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
           </div>
-          <div class="list-row" onclick="toast('视频号 敬请期待')">
+          <div class="list-row" id="video-channel-entry">
             <div class="avatar"><i class="fas fa-video" style="color:#fa5151;"></i></div>
             <div class="info"><div class="name">视频号</div></div>
             <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
           </div>
-          <div class="list-row" onclick="toast('直播 敬请期待')">
-            <div class="avatar"><i class="fas fa-tower-broadcast" style="color:#07c160;"></i></div>
-            <div class="info"><div class="name">直播</div></div>
-            <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
-          </div>
-          <div class="list-row" onclick="toast('扫一扫 敬请期待')">
+          <div class="list-row" id="scan-entry">
             <div class="avatar"><i class="fas fa-qrcode" style="color:#3b82f6;"></i></div>
             <div class="info"><div class="name">扫一扫</div></div>
             <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
           </div>
-          <div class="list-row" onclick="toast('搜一搜 敬请期待')">
+          <div class="list-row" id="search-entry">
             <div class="avatar"><i class="fas fa-magnifying-glass" style="color:#8b5cf6;"></i></div>
             <div class="info"><div class="name">搜一搜</div></div>
             <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
@@ -1694,6 +1765,29 @@
       <div class="search-empty">
         <i class="fas fa-search"></i>
         <p>输入关键词开始搜索</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 扫一扫页 ============ -->
+  <div id="scanner-view">
+    <div class="scanner-header">
+      <button class="icon-btn" id="scanner-back"><i class="fas fa-chevron-left"></i></button>
+      <h3>扫一扫</h3>
+      <button class="icon-btn" id="scanner-album"><i class="fas fa-images"></i></button>
+    </div>
+    <div class="scanner-body">
+      <video id="scanner-video" autoplay playsinline></video>
+      <canvas id="scanner-canvas" style="display:none;"></canvas>
+      <div class="scanner-overlay">
+        <div class="scanner-frame"></div>
+        <p class="scanner-tip" id="scanner-tip">将二维码放入框内即可扫描</p>
+      </div>
+    </div>
+    <div class="scanner-result" id="scanner-result" style="display:none;">
+      <div class="scanner-result-content">
+        <p id="scanner-result-text"></p>
+        <button class="btn-primary" id="scanner-open-link">打开链接</button>
       </div>
     </div>
   </div>
@@ -3170,6 +3264,122 @@ async function doSearch(keyword){
     }
   }
 }
+
+/* ============ 发现页功能 ============ */
+$('search-entry').onclick=()=>openSearch();
+$('scan-entry').onclick=()=>openScanner();
+$('video-channel-entry').onclick=()=>{
+  const kuaishouUrl='https://www.kuaishou.com/profile/__KUAISHOU_PLACEHOLDER__';
+  window.open(kuaishouUrl,'_blank');
+};
+
+/* ============ 扫一扫 ============ */
+let scannerStream=null;
+let scannerRAF=null;
+let scannerLocked=false;
+
+function openScanner(){
+  $('scanner-view').classList.add('show');
+  $('scanner-result').style.display='none';
+  $('scanner-tip').textContent='将二维码放入框内即可扫描';
+  startCamera();
+}
+function closeScanner(){
+  $('scanner-view').classList.remove('show');
+  stopCamera();
+}
+function stopCamera(){
+  if(scannerRAF) cancelAnimationFrame(scannerRAF);
+  scannerRAF=null;
+  if(scannerStream){
+    scannerStream.getTracks().forEach(t=>t.stop());
+    scannerStream=null;
+  }
+  scannerLocked=false;
+}
+async function startCamera(){
+  try{
+    scannerStream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment'}
+    });
+    const video=$('scanner-video');
+    video.srcObject=scannerStream;
+    video.play();
+    scanLoop();
+  }catch(e){
+    $('scanner-tip').textContent='无法访问摄像头，请检查权限设置';
+  }
+}
+function scanLoop(){
+  if(!scannerStream) return;
+  const video=$('scanner-video');
+  const canvas=$('scanner-canvas');
+  const ctx=canvas.getContext('2d',{willReadFrequently:true});
+  if(video.readyState===video.HAVE_ENOUGH_DATA){
+    canvas.width=video.videoWidth;
+    canvas.height=video.videoHeight;
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+    const code=jsQR(imageData.data,imageData.width,imageData.height);
+    if(code&&code.data&&!scannerLocked){
+      scannerLocked=true;
+      handleScanResult(code.data);
+      return;
+    }
+  }
+  scannerRAF=requestAnimationFrame(scanLoop);
+}
+function handleScanResult(text){
+  $('scanner-result').style.display='block';
+  $('scanner-result-text').textContent=text;
+  const isUrl=/^https?:\/\//i.test(text);
+  const btn=$('scanner-open-link');
+  if(isUrl){
+    btn.textContent='打开链接';
+    btn.style.display='block';
+    btn.onclick=()=>{
+      window.open(text,'_blank');
+      closeScanner();
+    };
+  }else{
+    btn.textContent='关闭';
+    btn.onclick=()=>{
+      closeScanner();
+    };
+  }
+  stopCamera();
+}
+$('scanner-back').onclick=closeScanner;
+$('scanner-album').onclick=()=>{
+  const input=document.createElement('input');
+  input.type='file';
+  input.accept='image/*';
+  input.onchange=(e)=>{
+    const file=e.target.files[0];
+    if(!file) return;
+    const reader=new FileReader();
+    reader.onload=(ev)=>{
+      const img=new Image();
+      img.onload=()=>{
+        const canvas=$('scanner-canvas');
+        const ctx=canvas.getContext('2d',{willReadFrequently:true});
+        canvas.width=img.width;
+        canvas.height=img.height;
+        ctx.drawImage(img,0,0);
+        const imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+        const code=jsQR(imageData.data,imageData.width,imageData.height);
+        if(code&&code.data){
+          handleScanResult(code.data);
+        }else{
+          toast('未识别到二维码');
+        }
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
+};
 
 /* ============ 工具 ============ */
 function escapeHTML(s){
