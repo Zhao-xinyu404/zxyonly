@@ -962,6 +962,16 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { success: true, users });
   }
 
+  /* ====== Admin: 清空所有朋友圈 ====== */
+  if (req.method === 'POST' && url === '/api/admin/clear-moments') {
+    const body = await readBody(req);
+    const { username } = body;
+    if (username !== 'admin') return send(res, 200, { success: false, msg: '无权限' });
+    memMoments = {};
+    saveAllMoments([]);
+    return send(res, 200, { success: true });
+  }
+
   /* ====== 更新个人资料 ====== */
   if (req.method === 'POST' && url === '/api/profile/update') {
     const body = await readBody(req);

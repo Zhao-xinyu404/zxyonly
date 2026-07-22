@@ -1063,11 +1063,13 @@
     display:grid;
     gap:4px;
     margin-bottom:8px;
+    max-height:300px;
+    overflow:hidden;
   }
-  .moment-item .moment-images.single{grid-template-columns:1fr;max-width:240px;}
-  .moment-item .moment-images.double{grid-template-columns:1fr 1fr;max-width:240px;}
-  .moment-item .moment-images.triple{grid-template-columns:repeat(3,1fr);max-width:300px;}
-  .moment-item .moment-images.many{grid-template-columns:repeat(3,1fr);max-width:300px;}
+  .moment-item .moment-images.single{grid-template-columns:1fr;max-width:240px;max-height:240px;}
+  .moment-item .moment-images.double{grid-template-columns:1fr 1fr;max-width:240px;max-height:120px;}
+  .moment-item .moment-images.triple{grid-template-columns:repeat(3,1fr);max-width:300px;max-height:100px;}
+  .moment-item .moment-images.many{grid-template-columns:repeat(3,1fr);max-width:300px;max-height:200px;}
   .moment-item .moment-img{
     width:100%;
     aspect-ratio:1;
@@ -1491,6 +1493,19 @@
     font-size:12px;
     color:var(--danger);
   }
+  .admin-clear-btn{
+    background:var(--danger);
+    color:#fff;
+    border:none;
+    padding:12px;
+    border-radius:10px;
+    font-size:15px;
+    font-weight:500;
+    cursor:pointer;
+    width:100%;
+    margin-top:4px;
+  }
+  .admin-clear-btn:active{opacity:.9;}
 </style>
 </head>
 <body>
@@ -2411,7 +2426,27 @@ async function renderAdmin(){
     `).join('')}
   </div>`;
 
-  $('admin-content').innerHTML=statsHtml+usersHtml;
+  $('admin-content').innerHTML=statsHtml+usersHtml+`
+    <div class="admin-section">
+      <div class="admin-section-title">
+        <span>朋友圈管理</span>
+      </div>
+      <button class="admin-clear-btn" onclick="clearAllMoments()">
+        <i class="fas fa-trash-alt"></i> 清空所有朋友圈
+      </button>
+    </div>
+  `;
+}
+
+async function clearAllMoments(){
+  showConfirm('确定要清空所有朋友圈吗？此操作不可恢复！',async()=>{
+    const r=await api('/api/admin/clear-moments',{username:currentUser.username});
+    if(r.success){
+      toast('所有朋友圈已清空');
+    }else{
+      toast(r.msg);
+    }
+  },'危险操作确认');
 }
 
 /* ============ 添加好友 ============ */
@@ -2719,7 +2754,10 @@ async function renderMoments(){
     }
     const delBtn=document.getElementById(`moment-delete-${m.id}`);
     if(delBtn){
-      delBtn.onclick=()=>deleteMoment(m.id);
+      delBtn.onclick=(e)=>{
+        e.stopPropagation();
+        deleteMoment(m.id);
+      };
     }
   });
   
