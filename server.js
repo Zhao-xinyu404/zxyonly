@@ -17,7 +17,8 @@ function supabaseRequest(path, method = 'GET', body = null, query = null) {
       Object.entries(query).forEach(([k, v]) => url.searchParams.set(k, v));
     }
     const isHttps = url.protocol === 'https:';
-    const mod = isHttps ? https : http;
+    const proxyUrl = isHttps ? process.env.https_proxy || process.env.HTTPS_PROXY : process.env.http_proxy || process.env.HTTP_PROXY;
+    
     const headers = {
       'apikey': SUPABASE_KEY,
       'Authorization': 'Bearer ' + SUPABASE_KEY,
@@ -26,21 +27,71 @@ function supabaseRequest(path, method = 'GET', body = null, query = null) {
     if (method === 'POST' || method === 'PATCH') {
       headers['Prefer'] = 'resolution=merge-duplicates,return=minimal';
     }
-    const opts = { method, headers };
-    const req = mod.request(url, opts, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          try { resolve(data ? JSON.parse(data) : null); } catch (e) { resolve(data); }
-        } else {
-          reject(new Error(`Supabase ${res.statusCode}: ${data}`));
+
+    if (proxyUrl) {
+      const proxy = new URL(proxyUrl);
+      const proxyMod = proxy.protocol === 'https:' ? https : http;
+      const connectOpts = {
+        method: 'CONNECT',
+        hostname: proxy.hostname,
+        port: proxy.port || (proxy.protocol === 'https:' ? 443 : 80),
+        path: `${url.hostname}:${url.port || (isHttps ? 443 : 80)}`,
+        headers: {}
+      };
+
+      const connectReq = proxyMod.request(connectOpts);
+      connectReq.on('connect', (res, socket) => {
+        if (res.statusCode !== 200) {
+          socket.destroy();
+          reject(new Error(`Proxy connect failed: ${res.statusCode}`));
+          return;
         }
+
+        const tunnelMod = isHttps ? https : http;
+        const tunnelOpts = {
+          method,
+          headers,
+          hostname: url.hostname,
+          port: url.port || (isHttps ? 443 : 80),
+          path: url.pathname + url.search,
+          socket
+        };
+
+        const tunnelReq = tunnelMod.request(tunnelOpts, (tunnelRes) => {
+          let data = '';
+          tunnelRes.on('data', chunk => data += chunk);
+          tunnelRes.on('end', () => {
+            if (tunnelRes.statusCode >= 200 && tunnelRes.statusCode < 300) {
+              try { resolve(data ? JSON.parse(data) : null); } catch (e) { resolve(data); }
+            } else {
+              reject(new Error(`Supabase ${tunnelRes.statusCode}: ${data}`));
+            }
+          });
+        });
+        tunnelReq.on('error', reject);
+        if (body) tunnelReq.write(JSON.stringify(body));
+        tunnelReq.end();
       });
-    });
-    req.on('error', reject);
-    if (body) req.write(JSON.stringify(body));
-    req.end();
+      connectReq.on('error', reject);
+      connectReq.end();
+    } else {
+      const mod = isHttps ? https : http;
+      const opts = { method, headers, hostname: url.hostname, port: url.port || (isHttps ? 443 : 80), path: url.pathname + url.search };
+      const req = mod.request(opts, (res) => {
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            try { resolve(data ? JSON.parse(data) : null); } catch (e) { resolve(data); }
+          } else {
+            reject(new Error(`Supabase ${res.statusCode}: ${data}`));
+          }
+        });
+      });
+      req.on('error', reject);
+      if (body) req.write(JSON.stringify(body));
+      req.end();
+    }
   });
 }
 
