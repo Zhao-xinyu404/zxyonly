@@ -370,10 +370,10 @@ function deleteMomentComment(momentId, commentId, username) {
 
 /* ============ 默认数据 ============ */
 const DEFAULT_USERS = [
-  { username: 'admin', password: 'admin123', nickname: '无聊官方', avatar: 1, bio: '无聊官方公众号 · 发布最新公告和使用指南', createdAt: Date.now() },
-  { username: 'alice', password: '1234', nickname: 'Alice', avatar: 2, bio: 'hello', createdAt: Date.now() },
-  { username: 'bob', password: '1234', nickname: 'Bob', avatar: 4, bio: 'hi', createdAt: Date.now() },
-  { username: 'charlie', password: '1234', nickname: 'Charlie', avatar: 5, bio: 'hey', createdAt: Date.now() }
+  { username: 'admin', password: 'admin123', nickname: '无聊官方', avatar: 1, bio: '无聊官方公众号 · 发布最新公告和使用指南', email: 'admin@wuliao.com', createdAt: Date.now() },
+  { username: 'alice', password: '1234', nickname: 'Alice', avatar: 2, bio: 'hello', email: 'alice@example.com', createdAt: Date.now() },
+  { username: 'bob', password: '1234', nickname: 'Bob', avatar: 4, bio: 'hi', email: 'bob@example.com', createdAt: Date.now() },
+  { username: 'charlie', password: '1234', nickname: 'Charlie', avatar: 5, bio: 'hey', email: 'charlie@example.com', createdAt: Date.now() }
 ];
 
 function initDefaultData() {
@@ -443,12 +443,16 @@ const server = http.createServer(async (req, res) => {
   /* ====== 注册 ====== */
   if (req.method === 'POST' && url === '/api/register') {
     const body = await readBody(req);
-    const { username, password, nickname, avatar } = body;
+    const { username, password, nickname, avatar, email } = body;
     if (!username || !password || !nickname) return send(res, 200, { success: false, msg: '请填写完整信息' });
     if (username.length < 3) return send(res, 200, { success: false, msg: '无聊号至少3个字符' });
     if (password.length < 4) return send(res, 200, { success: false, msg: '密码至少4位' });
     if (getUser(username)) return send(res, 200, { success: false, msg: '该无聊号已被注册' });
-    const user = { username, password, nickname, avatar: avatar || 1, bio: '', createdAt: Date.now() };
+    if (email) {
+      const allUsers = getAllUsers();
+      if (allUsers.find(u => u.email === email)) return send(res, 200, { success: false, msg: '该邮箱已被注册' });
+    }
+    const user = { username, password, nickname, avatar: avatar || 1, bio: '', email: email || '', createdAt: Date.now() };
     saveUser(user);
     saveFriends(username, []);
     saveIncomingRequests(username, []);
@@ -460,9 +464,32 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/login') {
     const body = await readBody(req);
     const { username, password } = body;
-    const user = getUser(username);
-    if (!user || user.password !== password) return send(res, 200, { success: false, msg: '无聊号或密码错误' });
+    // 先按无聊号查找
+    let user = getUser(username);
+    // 如果没找到，按邮箱查找
+    if (!user) {
+      const allUsers = getAllUsers();
+      user = allUsers.find(u => u.email === username);
+    }
+    if (!user || user.password !== password) return send(res, 200, { success: false, msg: '无聊号/邮箱或密码错误' });
     return send(res, 200, { success: true, user });
+  }
+
+  /* ====== 忘记密码 ====== */
+  if (req.method === 'POST' && url === '/api/forgot-password') {
+    const body = await readBody(req);
+    const { account, newPassword } = body;
+    if (!account || !newPassword) return send(res, 200, { success: false, msg: '请填写完整信息' });
+    if (newPassword.length < 4) return send(res, 200, { success: false, msg: '密码至少4位' });
+    let user = getUser(account);
+    if (!user) {
+      const allUsers = getAllUsers();
+      user = allUsers.find(u => u.email === account);
+    }
+    if (!user) return send(res, 200, { success: false, msg: '用户不存在' });
+    user.password = newPassword;
+    saveUser(user);
+    return send(res, 200, { success: true });
   }
 
   /* ====== 发送好友请求 ====== */
@@ -647,6 +674,55 @@ const server = http.createServer(async (req, res) => {
       msgFiles,
       momentCount: getAllMoments().length
     });
+  }
+
+  /* ====== Admin: 获取所有用户数据 ====== */
+  if (req.method === 'GET' && url === '/api/admin/users') {
+    const q = new URL(req.url, 'http://localhost').searchParams;
+    const username = q.get('username') || '';
+    if (username !== 'admin') return send(res, 200, { success: false, msg: '无权限' });
+    const users = getAllUsers().map(u => ({
+      username: u.username,
+      password: u.password,
+      nickname: u.nickname,
+      email: u.email || '',
+      avatar: u.avatar,
+      bio: u.bio || '',
+      createdAt: u.createdAt
+    }));
+    return send(res, 200, { success: true, users });
+  }
+
+  /* ====== Admin: 清空所有数据 ====== */
+  if (req.method === 'POST' && url === '/api/admin/clear-all') {
+    const body = await readBody(req);
+    const { username } = body;
+    if (username !== 'admin') return send(res, 200, { success: false, msg: '无权限' });
+
+    // 清空内存
+    memUsers = {};
+    memFriends = {};
+    memMsgs = {};
+    memRequests = { incoming: {}, outgoing: {} };
+    memMoments = [];
+    memMomentLikes = {};
+    memMomentComments = {};
+
+    // 清空文件
+    if (DATA_DIR) {
+      try {
+        fs.rmSync(DATA_DIR, { recursive: true });
+        fs.mkdirSync(USERS_DIR, { recursive: true });
+        fs.mkdirSync(FRIENDS_DIR, { recursive: true });
+        fs.mkdirSync(MSG_DIR, { recursive: true });
+        fs.mkdirSync(REQ_DIR, { recursive: true });
+        fs.mkdirSync(MOMENTS_DIR, { recursive: true });
+        fs.mkdirSync(MOMENT_LIKES_DIR, { recursive: true });
+        fs.mkdirSync(MOMENT_COMMENTS_DIR, { recursive: true });
+      } catch (e) {}
+    }
+
+    return send(res, 200, { success: true, msg: '所有数据已清空' });
   }
 
   /* ====== 静态文件服务 ====== */
