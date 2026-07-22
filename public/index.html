@@ -394,6 +394,17 @@
     transition:transform .25s ease;
   }
   #scanner-view.show{transform:translateX(0);}
+
+  /* 视频号页 */
+  #video-view{
+    position:absolute;top:0;left:0;right:0;bottom:0;
+    background:#fff;
+    display:flex;flex-direction:column;
+    z-index:100;
+    transform:translateX(100%);
+    transition:transform .25s ease;
+  }
+  #video-view.show{transform:translateX(0);}
   .scanner-header{
     display:flex;align-items:center;justify-content:space-between;
     padding:12px 16px;
@@ -1480,19 +1491,6 @@
     font-size:12px;
     color:var(--danger);
   }
-  .admin-clear-btn{
-    background:var(--danger);
-    color:#fff;
-    border:none;
-    padding:12px;
-    border-radius:10px;
-    font-size:15px;
-    font-weight:500;
-    cursor:pointer;
-    width:100%;
-    margin-top:4px;
-  }
-  .admin-clear-btn:active{opacity:.9;}
 </style>
 </head>
 <body>
@@ -1653,7 +1651,7 @@
 
       <!-- ===== 发现 Tab ===== -->
       <div class="tab-panel" id="tab-discover">
-        <div class="discover-banner">
+        <div class="discover-banner" id="discover-banner-entry" style="cursor:pointer;">
           <i class="fas fa-compass"></i>
           <div>
             <h4>发现精彩</h4>
@@ -1790,6 +1788,16 @@
         <button class="btn-primary" id="scanner-open-link">打开链接</button>
       </div>
     </div>
+  </div>
+
+  <!-- ============ 视频号页（iframe） ============ -->
+  <div id="video-view">
+    <div class="chat-detail-header">
+      <button class="icon-btn" id="video-back"><i class="fas fa-chevron-left"></i></button>
+      <h3>视频号</h3>
+      <button class="icon-btn" onclick="window.open('https://kpfshanghai.m.chenzhongtech.com/fw/user/zxy110905110905?fid=2582199207&cc=share_wxms&followRefer=151&shareMethod=CARD&kpn=NEBULA&subBiz=PROFILE&shareId=19046254814022&shareToken=X-1lODNgASHnxuqz&shareResourceType=PROFILE_OTHER&shareMode=APP&originShareId=19046254814022&appType=21&shareObjectId=1893425837&shareUrlOpened=0&timestamp=1784722189742','_blank')"><i class="fas fa-external-link-alt"></i></button>
+    </div>
+    <iframe id="video-iframe" src="" style="flex:1;border:none;width:100%;" allow="fullscreen"></iframe>
   </div>
 
   <!-- ============ 聊天详情页 ============ -->
@@ -2390,31 +2398,7 @@ async function renderAdmin(){
     `).join('')}
   </div>`;
 
-  $('admin-content').innerHTML=statsHtml+usersHtml+`
-    <button class="admin-clear-btn" onclick="clearAllData()">
-      <i class="fas fa-trash-alt"></i> 清空所有用户数据
-    </button>
-    <div style="font-size:12px;color:var(--text-3);text-align:center;margin-top:8px;">
-      警告：此操作不可恢复，将删除所有用户、好友、消息、朋友圈数据
-    </div>
-  `;
-}
-
-async function clearAllData(){
-  showConfirm('确定要清空所有数据吗？此操作不可恢复！',async()=>{
-    const r=await api('/api/admin/clear-all',{username:currentUser.username});
-    if(r.success){
-      toast('所有数据已清空');
-      $('admin-view').classList.remove('show');
-      stopPolling();
-      localStorage.removeItem('wuliao_session');
-      currentUser=null;
-      showAuth();
-      toast('数据已清空，请重新登录');
-    }else{
-      toast(r.msg);
-    }
-  },'危险操作确认');
+  $('admin-content').innerHTML=statsHtml+usersHtml;
 }
 
 /* ============ 添加好友 ============ */
@@ -3268,9 +3252,15 @@ async function doSearch(keyword){
 /* ============ 发现页功能 ============ */
 $('search-entry').onclick=()=>openSearch();
 $('scan-entry').onclick=()=>openScanner();
+$('discover-banner-entry').onclick=()=>openMoments();
 $('video-channel-entry').onclick=()=>{
   const kuaishouUrl='https://kpfshanghai.m.chenzhongtech.com/fw/user/zxy110905110905?fid=2582199207&cc=share_wxms&followRefer=151&shareMethod=CARD&kpn=NEBULA&subBiz=PROFILE&shareId=19046254814022&shareToken=X-1lODNgASHnxuqz&shareResourceType=PROFILE_OTHER&shareMode=APP&originShareId=19046254814022&appType=21&shareObjectId=1893425837&shareUrlOpened=0&timestamp=1784722189742';
-  window.open(kuaishouUrl,'_blank');
+  $('video-iframe').src=kuaishouUrl;
+  $('video-view').classList.add('show');
+};
+$('video-back').onclick=()=>{
+  $('video-view').classList.remove('show');
+  $('video-iframe').src='';
 };
 
 /* ============ 扫一扫 ============ */
