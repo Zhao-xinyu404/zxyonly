@@ -485,8 +485,10 @@ function countUnread(username, withUser) {
 
 function getTotalUnread(username) {
   const friends = getFriends(username);
+  const contacts = [...friends];
+  if (!contacts.includes('admin')) contacts.push('admin');
   let total = 0;
-  friends.forEach(f => {
+  contacts.forEach(f => {
     total += countUnread(username, f);
   });
   return total;
@@ -891,7 +893,9 @@ const server = http.createServer(async (req, res) => {
       const total = getTotalUnread(username);
       const perConversation = {};
       const friends = getFriends(username);
-      friends.forEach(f => {
+      const contacts = [...friends];
+      if (!contacts.includes('admin')) contacts.push('admin');
+      contacts.forEach(f => {
         const c = countUnread(username, f);
         if (c > 0) perConversation[f] = c;
       });
@@ -918,7 +922,7 @@ const server = http.createServer(async (req, res) => {
     const { from, to, content } = body;
     if (!from || !to || !content) return send(res, 200, { success: false, msg: '参数错误' });
     if (!getUser(from) || !getUser(to)) return send(res, 200, { success: false, msg: '用户不存在' });
-    if (!areFriends(from, to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
+    if (to !== 'admin' && from !== 'admin' && !areFriends(from, to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
     const msg = addMsg(from, to, content);
     return send(res, 200, { success: true, message: msg });
   }

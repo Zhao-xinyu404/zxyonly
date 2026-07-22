@@ -655,9 +655,10 @@
     transform:translateX(0);
   }
   .oa-content{
-    flex:1;
+    flex-shrink:0;
     overflow-y:auto;
     -webkit-overflow-scrolling:touch;
+    max-height:50%;
   }
   .oa-header{
     background:#fff;
@@ -710,6 +711,43 @@
   }
   .oa-article .art-meta{
     font-size:11px;color:var(--text-3);margin-top:8px;
+  }
+  .oa-chat-section{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    background:var(--bg);
+    min-height:0;
+  }
+  .oa-chat-messages{
+    flex:1;
+    overflow-y:auto;
+    padding:14px 12px 20px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .oa-chat-messages .msg{
+    max-width:75%;
+    padding:10px 12px;
+    border-radius:8px;
+    font-size:15px;
+    line-height:1.5;
+    word-break:break-word;
+  }
+  .oa-chat-messages .msg.other{
+    align-self:flex-start;
+    background:#fff;
+    border-top-left-radius:2px;
+  }
+  .oa-chat-messages .msg.self{
+    align-self:flex-end;
+    background:var(--bubble-self);
+    border-top-right-radius:2px;
+  }
+  .oa-chat-messages .msg-time{
+    text-align:center;font-size:11px;color:var(--text-2);
+    padding:4px 0;
   }
   .chat-detail-header{
     flex-shrink:0;
@@ -871,41 +909,6 @@
     text-align:center;
   }
   .toast.show{opacity:1;}
-
-  /* 新消息弹窗 */
-  .msg-popup{
-    position:absolute;
-    top:44px;left:12px;right:12px;
-    background:#fff;
-    border-radius:12px;
-    padding:10px 12px;
-    display:flex;
-    align-items:center;
-    gap:10px;
-    box-shadow:0 4px 20px rgba(0,0,0,0.15);
-    z-index:150;
-    transform:translateY(-120%);
-    transition:transform .3s cubic-bezier(.2,.8,.2,1);
-    cursor:pointer;
-  }
-  .msg-popup.show{transform:translateY(0);}
-  .msg-popup .mp-avatar{
-    width:40px;height:40px;border-radius:8px;
-    flex-shrink:0;
-    display:flex;align-items:center;justify-content:center;
-    color:#fff;font-size:16px;font-weight:600;
-    overflow:hidden;
-  }
-  .msg-popup .mp-avatar img{width:100%;height:100%;object-fit:cover;border-radius:8px;}
-  .msg-popup .mp-body{flex:1;min-width:0;}
-  .msg-popup .mp-name{
-    font-size:14px;font-weight:600;color:var(--text);
-    margin-bottom:2px;
-  }
-  .msg-popup .mp-content{
-    font-size:13px;color:var(--text-2);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  }
 
   /* 预设头像颜色 */
   .av-1{background:linear-gradient(135deg,#07c160,#34d27f);}
@@ -1945,6 +1948,13 @@
       <button class="icon-btn"><i class="fas fa-ellipsis"></i></button>
     </div>
     <div class="oa-content" id="oa-content"></div>
+    <div class="oa-chat-section" id="oa-chat-section" style="display:none;">
+      <div class="oa-chat-messages" id="oa-chat-messages"></div>
+      <div class="chat-input-bar">
+        <textarea id="oa-chat-input" rows="1" placeholder="给公众号发消息..."></textarea>
+        <button class="send-btn" id="oa-btn-send">发送</button>
+      </div>
+    </div>
   </div>
 
   <!-- ============ 新的朋友页 ============ -->
@@ -2055,15 +2065,6 @@
     <div class="admin-content" id="admin-content"></div>
   </div>
 
-  <!-- 新消息弹窗 -->
-  <div class="msg-popup" id="msg-popup" onclick="closeMsgPopup()">
-    <div class="mp-avatar" id="msg-popup-avatar"></div>
-    <div class="mp-body">
-      <div class="mp-name" id="msg-popup-name"></div>
-      <div class="mp-content" id="msg-popup-content"></div>
-    </div>
-  </div>
-
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
@@ -2163,24 +2164,6 @@ function playMessageSound(){
   }catch(e){}
 }
 
-/* ============ 新消息弹窗通知 ============ */
-let msgPopupTimer=null;
-function showMessagePopup(fromUser,content){
-  const popup=$('msg-popup');
-  if(!popup) return;
-  $('msg-popup-avatar').innerHTML=userAvatarHTML(fromUser,fromUser?.nickname);
-  $('msg-popup-name').textContent=fromUser?.nickname||'新消息';
-  $('msg-popup-content').textContent=content;
-  popup.classList.add('show');
-  if(msgPopupTimer) clearTimeout(msgPopupTimer);
-  msgPopupTimer=setTimeout(()=>popup.classList.remove('show'),3000);
-}
-function closeMsgPopup(){
-  const popup=$('msg-popup');
-  if(popup) popup.classList.remove('show');
-  if(msgPopupTimer){clearTimeout(msgPopupTimer);msgPopupTimer=null;}
-}
-
 /* ============ 获取未读消息并更新UI ============ */
 async function fetchUnreadAndNotify(){
   if(!currentUser) return;
@@ -2202,29 +2185,6 @@ async function fetchUnreadAndNotify(){
   
   if(total>prevTotal){
     playMessageSound();
-    
-    let newestFriend=null;
-    let newestMsg=null;
-    const friends=Object.keys(r.perConversation);
-    for(const f of friends){
-      const mr=await api(`/api/messages/${currentUser.username}/${f}`,'','GET');
-      if(mr.success&&mr.messages.length>0){
-        const last=mr.messages[mr.messages.length-1];
-        if(last.from===f&&last.time>lastNotifiedMsgTime){
-          if(!newestMsg||last.time>newestMsg.time){
-            newestFriend=f;
-            newestMsg=last;
-          }
-        }
-      }
-    }
-    if(newestMsg&&newestMsg.time>lastNotifiedMsgTime){
-      lastNotifiedMsgTime=newestMsg.time;
-      if(currentChatTarget!==newestFriend){
-        const ur=await api(`/api/user/${newestFriend}`,'','GET');
-        showMessagePopup(ur.success?ur.user:null,newestMsg.content);
-      }
-    }
   }
   
   renderChatList();
@@ -2771,9 +2731,27 @@ const OA_ARTICLES=[
 async function openOfficialAccount(){
   $('official-account-view').classList.add('show');
   await renderOfficialAccount();
+  renderOAChatMessages();
+  startOAPolling();
 }
 $('official-account-card').onclick=openOfficialAccount;
-$('oa-back').onclick=()=>$('official-account-view').classList.remove('show');
+$('oa-back').onclick=()=>{
+  $('official-account-view').classList.remove('show');
+  stopOAPolling();
+};
+
+let oaPollTimer=null;
+function startOAPolling(){
+  stopOAPolling();
+  oaPollTimer=setInterval(()=>{
+    if(currentUser&&$('official-account-view').classList.contains('show')){
+      renderOAChatMessages();
+    }
+  },3000);
+}
+function stopOAPolling(){
+  if(oaPollTimer){clearInterval(oaPollTimer);oaPollTimer=null;}
+}
 
 async function renderOfficialAccount(){
   if(!currentUser) return;
@@ -2782,9 +2760,9 @@ async function renderOfficialAccount(){
   const fr=await api(`/api/friends/${currentUser.username}`,'','GET');
   const friendUsernames=(fr.success?fr.friends:[]).map(f=>f.username);
   const isFriend=oa&&friendUsernames.includes(OFFICIAL_ACCOUNT);
-  
+
   $('oa-name').textContent=oa?oa.nickname:'无聊官方';
-  
+
   const avatarBg='#07c160';
   const articlesHtml=OA_ARTICLES.map(a=>{
     return `<div class="oa-article">
@@ -2793,7 +2771,7 @@ async function renderOfficialAccount(){
       <div class="art-meta">${formatChatTime(a.time)}</div>
     </div>`;
   }).join('');
-  
+
   $('oa-content').innerHTML=`<div class="oa-header">
     <div class="oa-avatar" style="background:${avatarBg};"><i class="fas fa-bullhorn"></i></div>
     <div class="oa-title">${oa?escapeHTML(oa.nickname):'无聊官方'}</div>
@@ -2801,7 +2779,9 @@ async function renderOfficialAccount(){
     <button class="oa-btn ${isFriend?'added':''}" id="oa-follow-btn">${isFriend?'已关注':'关注公众号'}</button>
   </div>
   <div class="oa-articles">${articlesHtml}</div>`;
-  
+
+  $('oa-chat-section').style.display='flex';
+
   const btn=$('oa-follow-btn');
   if(btn&&!isFriend){
     btn.onclick=async()=>{
@@ -2816,6 +2796,63 @@ async function renderOfficialAccount(){
     };
   }
 }
+
+let lastOAMsgsHash='';
+async function renderOAChatMessages(){
+  if(!currentUser) return;
+  const r=await api(`/api/messages/${currentUser.username}/${OFFICIAL_ACCOUNT}`,'','GET');
+  const msgs=r.success?r.messages:[];
+  const newHash=msgs.length+'_'+(msgs[msgs.length-1]?.time||0);
+  if(newHash===lastOAMsgsHash) return;
+  lastOAMsgsHash=newHash;
+
+  const box=$('oa-chat-messages');
+  if(!box) return;
+  let html='';
+  let lastDate=null;
+  msgs.forEach(m=>{
+    const d=new Date(m.time);
+    const dateKey=d.toDateString();
+    if(dateKey!==lastDate){
+      html+=`<div class="msg-time">${formatChatTime(m.time)}</div>`;
+      lastDate=dateKey;
+    }
+    const isSelf=m.from===currentUser.username;
+    html+=`<div class="msg ${isSelf?'self':'other'}">${escapeHTML(m.content)}</div>`;
+  });
+  box.innerHTML=html||'<div class="msg-time">暂无消息，给公众号发条消息吧</div>';
+  box.scrollTop=box.scrollHeight;
+
+  if(msgs.length>0&&msgs[msgs.length-1].from===OFFICIAL_ACCOUNT){
+    delete unreadMap[OFFICIAL_ACCOUNT];
+    api('/api/messages/read',{username:currentUser.username,withUser:OFFICIAL_ACCOUNT},'POST');
+    updateChatTabBadge();
+  }
+}
+
+function sendOAMessage(){
+  if(!currentUser) return;
+  const input=$('oa-chat-input');
+  const text=input.value.trim();
+  if(!text) return;
+  api('/api/messages/send',{from:currentUser.username,to:OFFICIAL_ACCOUNT,content:text},'POST').then(res=>{
+    if(res.success){
+      input.value='';
+      input.style.height='auto';
+      renderOAChatMessages();
+    }else{
+      toast(res.msg||'发送失败');
+    }
+  });
+}
+$('oa-btn-send').onclick=sendOAMessage;
+$('oa-chat-input').addEventListener('input',function(){autoResize(this);});
+$('oa-chat-input').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){
+    e.preventDefault();
+    sendOAMessage();
+  }
+});
 
 /* ============ 新的朋友 ============ */
 function openNewFriends(){
