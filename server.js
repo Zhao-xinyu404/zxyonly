@@ -1,6 +1,119 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
+
+/* ============ Supabase 配置 ============ */
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '';
+function supabaseEnabled() {
+  return SUPABASE_URL && SUPABASE_KEY;
+}
+
+function supabaseRequest(path, method = 'GET', body = null, query = null) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(SUPABASE_URL + '/rest/v1' + path);
+    if (query) {
+      Object.entries(query).forEach(([k, v]) => url.searchParams.set(k, v));
+    }
+    const isHttps = url.protocol === 'https:';
+    const mod = isHttps ? https : http;
+    const headers = {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json'
+    };
+    if (method === 'POST' || method === 'PATCH') {
+      headers['Prefer'] = 'resolution=merge-duplicates,return=minimal';
+    }
+    const opts = { method, headers };
+    const req = mod.request(url, opts, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try { resolve(data ? JSON.parse(data) : null); } catch (e) { resolve(data); }
+        } else {
+          reject(new Error(`Supabase ${res.statusCode}: ${data}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    if (body) req.write(JSON.stringify(body));
+    req.end();
+  });
+}
+
+async function supabaseUpsert(id, type, data) {
+  if (!supabaseEnabled()) return;
+  await supabaseRequest('/wuliao_data', 'POST', {
+    id,
+    type,
+    data,
+    updated_at: Date.now()
+  });
+}
+
+async function supabaseSelect(type) {
+  if (!supabaseEnabled()) return [];
+  return await supabaseRequest('/wuliao_data', 'GET', null, { type: `eq.${type}` });
+}
+
+async function supabaseDeleteById(id) {
+  if (!supabaseEnabled()) return;
+  await supabaseRequest('/wuliao_data', 'DELETE', null, { id: `eq.${id}` });
+}
+
+async function supabaseDeleteByType(type) {
+  if (!supabaseEnabled()) return;
+  await supabaseRequest('/wuliao_data', 'DELETE', null, { type: `eq.${type}` });
+}
+
+async function loadFromSupabase() {
+  if (!supabaseEnabled()) return;
+  console.log('[INFO] Loading data from Supabase...');
+  const typeMap = {
+    'users': (id, data) => { memUsers[id] = data; },
+    'friends': (id, data) => { memFriends[id] = data; },
+    'messages': (id, data) => { memMsgs[id] = data; },
+    'incoming_requests': (id, data) => { memRequests.incoming[id] = data; },
+    'outgoing_requests': (id, data) => { memRequests.outgoing[id] = data; },
+    'moments': (id, data) => { memMoments = data; },
+    'moment_likes': (id, data) => { memMomentLikes[id] = data; },
+    'moment_comments': (id, data) => { memMomentComments[id] = data; }
+  };
+
+  for (const type of Object.keys(typeMap)) {
+    try {
+      const rows = await supabaseSelect(type);
+      for (const row of rows) {
+        typeMap[type](row.id, row.data);
+      }
+      console.log(`[INFO] Loaded ${rows.length} ${type} from Supabase`);
+    } catch (e) {
+      console.error(`[ERROR] Failed to load ${type} from Supabase:`, e.message);
+    }
+  }
+
+  syncAllToFiles();
+  console.log('[INFO] Supabase data synced to local files');
+}
+
+function syncAllToFiles() {
+  if (!DATA_DIR) return;
+  try {
+    Object.values(memUsers).forEach(u => writeJSON(userFile(u.username), u));
+    Object.entries(memFriends).forEach(([k, v]) => writeJSON(friendsFile(k), v));
+    Object.entries(memMsgs).forEach(([k, v]) => writeJSON(msgFileByKey(k), v));
+    Object.entries(memRequests.incoming).forEach(([k, v]) => writeJSON(incomingReqFile(k), v));
+    Object.entries(memRequests.outgoing).forEach(([k, v]) => writeJSON(outgoingReqFile(k), v));
+    writeJSON(momentsFile(), memMoments);
+    Object.entries(memMomentLikes).forEach(([k, v]) => writeJSON(momentLikesFile(k), v));
+    Object.entries(memMomentComments).forEach(([k, v]) => writeJSON(momentCommentsFile(k), v));
+  } catch (e) {
+    console.error('[ERROR] syncAllToFiles failed:', e.message);
+  }
+}
 
 /* ============ 数据存储 ============ */
 const DATA_DIR = (() => {
@@ -44,6 +157,7 @@ let memMomentComments = {};
 function userFile(u) { return path.join(USERS_DIR, u + '.json'); }
 function friendsFile(u) { return path.join(FRIENDS_DIR, u + '.json'); }
 function msgFile(a, b) { return path.join(MSG_DIR, [a, b].sort().join('__') + '.json'); }
+function msgFileByKey(key) { return path.join(MSG_DIR, key + '.json'); }
 function incomingReqFile(u) { return path.join(REQ_DIR, u + '_in.json'); }
 function outgoingReqFile(u) { return path.join(REQ_DIR, u + '_out.json'); }
 function momentsFile() { return path.join(MOMENTS_DIR, 'all.json'); }
@@ -83,6 +197,7 @@ function getUser(username) {
 function saveUser(user) {
   memUsers[user.username] = user;
   if (DATA_DIR) writeJSON(userFile(user.username), user);
+  if (supabaseEnabled()) supabaseUpsert(user.username, 'users', user).catch(e => console.error('[Supabase] saveUser failed:', e.message));
   return true;
 }
 
@@ -108,6 +223,7 @@ function getFriends(username) {
 function saveFriends(username, list) {
   memFriends[username] = list;
   if (DATA_DIR) writeJSON(friendsFile(username), list);
+  if (supabaseEnabled()) supabaseUpsert(username, 'friends', list).catch(e => console.error('[Supabase] saveFriends failed:', e.message));
   return true;
 }
 
@@ -149,11 +265,13 @@ function getOutgoingRequests(username) {
 function saveIncomingRequests(username, list) {
   memRequests.incoming[username] = list;
   if (DATA_DIR) writeJSON(incomingReqFile(username), list);
+  if (supabaseEnabled()) supabaseUpsert(username, 'incoming_requests', list).catch(e => console.error('[Supabase] saveIncomingRequests failed:', e.message));
 }
 
 function saveOutgoingRequests(username, list) {
   memRequests.outgoing[username] = list;
   if (DATA_DIR) writeJSON(outgoingReqFile(username), list);
+  if (supabaseEnabled()) supabaseUpsert(username, 'outgoing_requests', list).catch(e => console.error('[Supabase] saveOutgoingRequests failed:', e.message));
 }
 
 function sendFriendRequest(from, to, message) {
@@ -243,14 +361,16 @@ function addMsg(from, to, content) {
   const key = [from, to].sort().join('__');
   if (!memMsgs[key]) memMsgs[key] = [];
   memMsgs[key].push(msg);
-  
+
   if (DATA_DIR) {
     const file = msgFile(from, to);
     const existing = readJSON(file, []);
     existing.push(msg);
     writeJSON(file, existing);
   }
-  
+
+  if (supabaseEnabled()) supabaseUpsert(key, 'messages', memMsgs[key]).catch(e => console.error('[Supabase] addMsg failed:', e.message));
+
   return msg;
 }
 
@@ -266,6 +386,7 @@ function getAllMoments() {
 function saveAllMoments(list) {
   memMoments = list;
   if (DATA_DIR) writeJSON(momentsFile(), list);
+  if (supabaseEnabled()) supabaseUpsert('all', 'moments', list).catch(e => console.error('[Supabase] saveAllMoments failed:', e.message));
 }
 
 function getMomentLikes(momentId) {
@@ -279,6 +400,7 @@ function getMomentLikes(momentId) {
 function saveMomentLikes(momentId, list) {
   memMomentLikes[momentId] = list;
   if (DATA_DIR) writeJSON(momentLikesFile(momentId), list);
+  if (supabaseEnabled()) supabaseUpsert(momentId, 'moment_likes', list).catch(e => console.error('[Supabase] saveMomentLikes failed:', e.message));
 }
 
 function getMomentComments(momentId) {
@@ -292,6 +414,7 @@ function getMomentComments(momentId) {
 function saveMomentComments(momentId, list) {
   memMomentComments[momentId] = list;
   if (DATA_DIR) writeJSON(momentCommentsFile(momentId), list);
+  if (supabaseEnabled()) supabaseUpsert(momentId, 'moment_comments', list).catch(e => console.error('[Supabase] saveMomentComments failed:', e.message));
 }
 
 function createMoment(username, content, images, hideFrom) {
@@ -376,7 +499,9 @@ const DEFAULT_USERS = [
   { username: 'charlie', password: '1234', nickname: 'Charlie', avatar: 5, bio: 'hey', email: 'charlie@example.com', createdAt: Date.now() }
 ];
 
-function initDefaultData() {
+async function initDefaultData() {
+  await loadFromSupabase();
+
   const all = getAllUsers();
   if (all.length > 0) {
     console.log('[INFO] Users exist:', all.length);
@@ -390,13 +515,12 @@ function initDefaultData() {
     saveOutgoingRequests(u.username, []);
   });
   addFriend('alice', 'bob');
-  
+
   createMoment('alice', '今天天气真好~', [], []);
   createMoment('bob', '你好世界', [], []);
-  
+
   console.log('[INFO] Default data initialized');
 }
-initDefaultData();
 
 /* ============ HTTP 工具 ============ */
 function readBody(req) {
@@ -706,6 +830,13 @@ const server = http.createServer(async (req, res) => {
     memMomentLikes = {};
     memMomentComments = {};
 
+    // 清空 Supabase
+    if (supabaseEnabled()) {
+      try {
+        await supabaseRequest('/wuliao_data', 'DELETE');
+      } catch (e) { console.error('[Supabase] clear-all failed:', e.message); }
+    }
+
     // 清空文件
     if (DATA_DIR) {
       try {
@@ -758,12 +889,15 @@ const server = http.createServer(async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log('========================================');
-  console.log('[INFO] 无聊聊天服务 v3.0');
-  console.log('[INFO] 端口:', PORT);
-  console.log('[INFO] 数据目录:', DATA_DIR || '仅内存');
-  console.log('[INFO] 用户数:', getAllUsers().length);
-  console.log('[INFO] 朋友圈数:', getAllMoments().length);
-  console.log('========================================');
+initDefaultData().then(() => {
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log('========================================');
+    console.log('[INFO] 无聊聊天服务 v3.0');
+    console.log('[INFO] 端口:', PORT);
+    console.log('[INFO] 数据目录:', DATA_DIR || '仅内存');
+    console.log('[INFO] Supabase:', supabaseEnabled() ? '已启用' : '未启用');
+    console.log('[INFO] 用户数:', getAllUsers().length);
+    console.log('[INFO] 朋友圈数:', getAllMoments().length);
+    console.log('========================================');
+  });
 });
