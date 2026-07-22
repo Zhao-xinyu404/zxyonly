@@ -3325,8 +3325,16 @@ function renderMomentsHeader(){
   if(!currentUser) return;
   $('moments-user-name').textContent=currentUser.nickname;
   const av=$('moments-user-avatar');
-  av.className='moments-user-avatar av-'+(currentUser.avatar||1);
-  av.innerHTML=`<i class="fas fa-${AV_ICONS[currentUser.avatar]||'paw'}"></i>`;
+  if(currentUser.avatarData){
+    av.className='moments-user-avatar';
+    av.innerHTML=`<img src="${currentUser.avatarData}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
+  }else if(currentUser.customAvatar){
+    av.className='moments-user-avatar';
+    av.innerHTML=`<img src="${API_BASE}/api/avatar/${currentUser.customAvatar}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">`;
+  }else{
+    av.className='moments-user-avatar av-'+(currentUser.avatar||1);
+    av.innerHTML=`<i class="fas fa-${AV_ICONS[currentUser.avatar]||'paw'}"></i>`;
+  }
 }
 
 async function renderMoments(){
@@ -3968,14 +3976,17 @@ $('video-back').onclick=()=>{
 let scannerStream=null;
 let scannerRAF=null;
 let scannerLocked=false;
+let scannerActive=false;
 
 function openScanner(){
   $('scanner-view').classList.add('show');
   $('scanner-result').style.display='none';
   $('scanner-tip').textContent='将二维码放入框内即可扫描';
+  scannerActive=true;
   startCamera();
 }
 function closeScanner(){
+  scannerActive=false;
   $('scanner-view').classList.remove('show');
   stopCamera();
 }
@@ -3995,15 +4006,22 @@ function stopCamera(){
 }
 async function startCamera(){
   try{
-    scannerStream=await navigator.mediaDevices.getUserMedia({
+    const stream=await navigator.mediaDevices.getUserMedia({
       video:{facingMode:'environment'}
     });
+    if(!scannerActive){
+      stream.getTracks().forEach(t=>t.stop());
+      return;
+    }
+    scannerStream=stream;
     const video=$('scanner-video');
-    video.srcObject=scannerStream;
+    video.srcObject=stream;
     video.play();
     scanLoop();
   }catch(e){
-    $('scanner-tip').textContent='无法访问摄像头，请检查权限设置';
+    if(scannerActive){
+      $('scanner-tip').textContent='无法访问摄像头，请检查权限设置';
+    }
   }
 }
 function scanLoop(){
@@ -4046,6 +4064,16 @@ function handleScanResult(text){
   stopCamera();
 }
 $('scanner-back').onclick=closeScanner;
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden&&scannerActive){
+    scannerActive=false;
+    stopCamera();
+    $('scanner-view').classList.remove('show');
+  }
+});
+window.addEventListener('pagehide',()=>{
+  if(scannerStream) stopCamera();
+});
 $('scanner-album').onclick=()=>{
   const input=document.createElement('input');
   input.type='file';
@@ -4216,9 +4244,9 @@ async function renderGroupMessages(){
     const avatarHtml=userAvatarHTML(sender,sender.nickname).replace('<div class="avatar"',`<div class="avatar" data-user="${m.from}" style="cursor:pointer;"`);
     html+=`<div class="msg ${isSelf?'self':'other'}">
       ${avatarHtml}
-      <div style="display:flex;flex-direction:column;flex:1;min-width:0;">
+      <div style="display:flex;flex-direction:column;min-width:0;max-width:70%;">
         ${!isSelf?`<div style="font-size:12px;color:var(--text-2);margin-bottom:4px;">${escapeHTML(sender.nickname)}</div>`:''}
-        <div class="bubble">${escapeHTML(m.content)}</div>
+        <div class="bubble" style="max-width:100%;">${escapeHTML(m.content)}</div>
       </div>
     </div>`;
   }
@@ -4534,7 +4562,7 @@ function closeCurrentView(){
     const el=$(v.id);
     if(el&&el.classList.contains('show')){
       if(v.id==='official-account-view') stopOAPolling();
-      if(v.id==='scanner-view') stopCamera();
+      if(v.id==='scanner-view'){scannerActive=false;stopCamera();}
       el.classList.remove('show');
       el.style.transform='';
       el.style.transition='';
