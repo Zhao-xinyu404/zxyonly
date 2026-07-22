@@ -1685,7 +1685,17 @@
   }
 
   /* ===== 用户主页详情页 ===== */
-  #user-profile-view,#group-info-view{
+  #user-profile-view{
+    position:absolute;
+    inset:0;
+    background:var(--bg);
+    display:none;
+    flex-direction:column;
+    z-index:60;
+    transform:translateX(100%);
+    transition:transform .28s cubic-bezier(.2,.8,.2,1);
+  }
+  #group-info-view{
     position:absolute;
     inset:0;
     background:var(--bg);
@@ -4136,6 +4146,7 @@ $('cg-create').onclick=async()=>{
   if(r.success){
     toast('群聊创建成功');
     $('create-group-view').classList.remove('show');
+    renderChatList(true);
     openGroupChat(r.group.id);
   }else{
     toast(r.msg);
@@ -4199,7 +4210,7 @@ async function renderGroupMessages(){
     const avatarHtml=userAvatarHTML(sender,sender.nickname).replace('<div class="avatar"',`<div class="avatar" data-user="${m.from}" style="cursor:pointer;"`);
     html+=`<div class="msg ${isSelf?'self':'other'}">
       ${avatarHtml}
-      <div>
+      <div style="display:flex;flex-direction:column;flex:1;min-width:0;">
         ${!isSelf?`<div style="font-size:12px;color:var(--text-2);margin-bottom:4px;">${escapeHTML(sender.nickname)}</div>`:''}
         <div class="bubble">${escapeHTML(m.content)}</div>
       </div>
@@ -4322,6 +4333,7 @@ async function openGroupInfo(groupId){
   const r=await api(`/api/groups/${groupId}`,'','GET');
   if(!r.success){toast('群不存在');return;}
   const group=r.group;
+  const isCreator=currentUser.username===group.creator;
   
   // 获取所有成员信息
   const members=await Promise.all(group.members.map(async m=>{
@@ -4331,7 +4343,7 @@ async function openGroupInfo(groupId){
   
   let membersHtml='';
   for(const m of members){
-    const isCreator=m.username===group.creator;
+    const isMemberCreator=m.username===group.creator;
     let avatarHtml;
     if(m.avatarData){
       avatarHtml=`<div class="avatar"><img src="${m.avatarData}" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"></div>`;
@@ -4344,9 +4356,12 @@ async function openGroupInfo(groupId){
     membersHtml+=`<div class="gi-member" data-user="${m.username}">
       ${avatarHtml}
       <div class="info">
-        <div class="name">${escapeHTML(m.nickname)}${isCreator?'<span class="tag">群主</span>':''}</div>
+        <div class="name">${escapeHTML(m.nickname)}${isMemberCreator?'<span class="tag">群主</span>':''}</div>
       </div>
-      ${m.username!==currentUser.username?'<i class="fas fa-chevron-right" style="color:var(--text-3);font-size:14px;"></i>':''}
+      <div class="gi-actions">
+        ${m.username!==currentUser.username?'<i class="fas fa-chevron-right" style="color:var(--text-3);font-size:14px;"></i>':''}
+        ${isCreator&&!isMemberCreator&&m.username!==currentUser.username?`<button class="gi-kick-btn" data-user="${m.username}" style="color:#ef4444;font-size:14px;padding:4px 8px;border:none;background:none;cursor:pointer;"><i class="fas fa-user-minus"></i></button>`:''}
+      </div>
     </div>`;
   }
   
@@ -4356,6 +4371,13 @@ async function openGroupInfo(groupId){
       <div class="gi-name">${escapeHTML(group.name)}</div>
       <div class="gi-count">群成员 ${members.length} 人</div>
     </div>
+    ${isCreator?`<div class="gi-section-title">管理</div>
+    <div class="up-section" style="margin-top:0;">
+      <div class="up-row" style="cursor:pointer;" id="gi-add-member-btn">
+        <div style="flex:1;color:var(--text);"><i class="fas fa-user-plus"></i> 添加成员</div>
+        <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
+      </div>
+    </div>`:''}
     <div class="gi-section-title">群成员（${members.length}）</div>
     <div class="gi-members">
       ${membersHtml}
@@ -4378,7 +4400,8 @@ async function openGroupInfo(groupId){
   
   // 成员点击进入主页
   $('gi-content').querySelectorAll('.gi-member').forEach(item=>{
-    item.onclick=()=>{
+    item.onclick=(e)=>{
+      if(e.target.closest('.gi-kick-btn')) return;
       const username=item.dataset.user;
       if(username&&username!==currentUser.username){
         openUserProfile(username);
@@ -4386,9 +4409,83 @@ async function openGroupInfo(groupId){
     };
   });
   
+  // 踢人按钮
+  $('gi-content').querySelectorAll('.gi-kick-btn').forEach(btn=>{
+    btn.onclick=async(e)=>{
+      e.stopPropagation();
+      const username=btn.dataset.user;
+      if(confirm(`确定要移除 ${username} 吗？`)){
+        const r=await api(`/api/group-member/${groupId}/${username}`,'','DELETE');
+        if(r.success){
+          toast('已移除');
+          openGroupInfo(groupId);
+        }else{
+          toast(r.msg||'移除失败');
+        }
+      }
+    };
+  });
+  
+  // 添加成员按钮
+  if($('gi-add-member-btn')){
+    $('gi-add-member-btn').onclick=()=>openAddGroupMember(groupId);
+  }
+  
   $('group-info-view').classList.add('show');
 }
 $('gi-back').onclick=()=>$('group-info-view').classList.remove('show');
+
+/* ============ 添加群成员 ============ */
+async function openAddGroupMember(groupId){
+  if(!groupId) return;
+  const r=await api(`/api/friends/${currentUser.username}`,'','GET');
+  const friends=r.success?r.friends:[];
+  
+  const gr=await api(`/api/groups/${groupId}`,'','GET');
+  const group=gr.success?gr.group:null;
+  if(!group){toast('群不存在');return;}
+  const currentMembers=new Set(group.members);
+  
+  let html='';
+  for(const f of friends){
+    if(currentMembers.has(f.username)) continue;
+    html+=`<div class="list-row cg-item" data-user="${f.username}">
+      ${userAvatarHTML(f,f.nickname)}
+      <div class="info"><div class="name">${escapeHTML(f.nickname)}</div></div>
+      <div class="cg-check" data-user="${f.username}">
+        <i class="fas fa-check"></i>
+      </div>
+    </div>`;
+  }
+  
+  $('cg-content').innerHTML=html||`<div class="empty-state">
+    <i class="fas fa-user-plus"></i>
+    <p>没有可添加的好友<br>所有好友都已在群内</p>
+  </div>`;
+  
+  $('cg-title').textContent='选择要添加的好友';
+  $('cg-submit').style.display='block';
+  $('cg-submit').textContent='确定添加';
+  $('cg-submit').onclick=async()=>{
+    const selected=[...$('cg-content').querySelectorAll('.cg-check.checked')].map(c=>c.dataset.user);
+    if(selected.length===0){toast('请选择好友');return;}
+    for(const username of selected){
+      await api(`/api/group-member/${groupId}/${username}`,'','POST');
+    }
+    toast(`已添加 ${selected.length} 位成员`);
+    $('create-group-view').classList.remove('show');
+    openGroupInfo(groupId);
+  };
+  
+  $('cg-content').querySelectorAll('.cg-item').forEach(item=>{
+    item.onclick=()=>{
+      const check=item.querySelector('.cg-check');
+      check.classList.toggle('checked');
+    };
+  });
+  
+  $('create-group-view').classList.add('show');
+}
 
 // 单聊三点按钮 -> 对方主页
 $('chat-more').onclick=()=>{
