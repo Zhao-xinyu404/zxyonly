@@ -1351,13 +1351,19 @@
         <button class="btn-primary" id="btn-login">登 录</button>
         <div class="auth-switch">
           还没有账号？<a id="goto-register">立即注册</a>
-          <span style="margin:0 6px;color:var(--text-3);">|</span>
-          <a id="goto-forgot">忘记密码</a>
+        </div>
+        <div class="auth-switch" style="margin-top:6px;">
+          <a id="goto-forgot">忘记密码？</a>
         </div>
       </div>
 
       <!-- 注册表单 -->
       <div id="register-form" style="display:none;">
+        <div class="field has-icon">
+          <input type="text" id="reg-username" placeholder=" " autocomplete="off">
+          <i class="icon fas fa-id-card"></i>
+          <label>无聊号（用于加好友）</label>
+        </div>
         <div class="field has-icon">
           <input type="text" id="reg-email" placeholder=" " autocomplete="off">
           <i class="icon fas fa-envelope"></i>
@@ -1730,14 +1736,19 @@
 const API_BASE = '';
 
 /* ============ API 调用 ============ */
-async function api(url, data, method='POST'){
+async function api(url, data, method='POST', timeoutMs=10000){
   const fullUrl = API_BASE + url;
-  const opts = {method, headers:{'Content-Type':'application/json'}};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const opts = {method, headers:{'Content-Type':'application/json'}, signal: controller.signal};
   if(data) opts.body = JSON.stringify(data);
   try{
     const res = await fetch(fullUrl, opts);
+    clearTimeout(timer);
     return await res.json();
   }catch(e){
+    clearTimeout(timer);
+    if(e.name==='AbortError') return {success:false, msg:'请求超时，请检查网络'};
     return {success:false, msg:'网络错误，请检查后端服务是否启动'};
   }
 }
@@ -1873,13 +1884,15 @@ $('btn-login').onclick=async()=>{
 };
 
 $('btn-register').onclick=async()=>{
+  const username=$('reg-username').value.trim();
   const email=$('reg-email').value.trim();
   const password=$('reg-password').value;
   const nickname=$('reg-nickname').value.trim();
-  if(!email||!password||!nickname){
+  if(!username||!email||!password||!nickname){
     $('reg-error').textContent='请填写完整信息';return;
   }
-  const r=await api('/api/register',{email,password,nickname,avatar:selectedAvatar});
+  if(username.length<3){$('reg-error').textContent='无聊号至少3个字符';return;}
+  const r=await api('/api/register',{username,email,password,nickname,avatar:selectedAvatar});
   if(!r.success){
     $('reg-error').textContent=r.msg;
     return;
@@ -1888,7 +1901,7 @@ $('btn-register').onclick=async()=>{
   localStorage.setItem('wuliao_session',r.user.username);
   currentUser=r.user;
   enterMain();
-  toast(`注册成功！你的无聊号是：${r.user.username}`);
+  toast('注册成功，欢迎加入无聊！');
 };
 
 function enterMain(){
@@ -2148,39 +2161,52 @@ async function clearAllData(){
 
 /* ============ 添加好友 ============ */
 function openAddFriend(){
-  $('friend-username').value='';
-  $('add-friend-hint').textContent='输入对方的无聊号即可添加好友。';
-  $('add-friend-hint').style.color='';
-  $('add-friend-modal').classList.add('show');
-  setTimeout(()=>$('friend-username').focus(),100);
+  const modal=$('add-friend-modal');
+  const input=$('friend-username');
+  const hint=$('add-friend-hint');
+  if(!modal||!input||!hint){toast('页面加载中，请稍后重试');return;}
+  input.value='';
+  hint.textContent='输入对方的无聊号即可添加好友。';
+  hint.style.color='';
+  modal.classList.add('show');
+  setTimeout(()=>input.focus(),100);
 }
-$('add-friend-card').onclick=openAddFriend;
-$('add-friend-cancel').onclick=()=>$('add-friend-modal').classList.remove('show');
-$('add-friend-confirm').onclick=async()=>{
-  try{
-    const target=$('friend-username').value.trim();
-    if(!target){$('add-friend-hint').textContent='请输入无聊号';$('add-friend-hint').style.color='var(--danger)';return;}
-    if(!currentUser){toast('请先登录');return;}
-    if(target===currentUser.username){
-      $('add-friend-hint').textContent='不能添加自己为好友';$('add-friend-hint').style.color='var(--danger)';
-      return;
-    }
-    $('add-friend-hint').textContent='发送中...';$('add-friend-hint').style.color='var(--text-2)';
-    const r=await api('/api/friend-request/send',{from:currentUser.username,to:target,message:''});
-    if(!r.success){
-      $('add-friend-hint').textContent=r.msg;
-      $('add-friend-hint').style.color='var(--danger)';
-      return;
-    }
-    $('add-friend-modal').classList.remove('show');
-    toast('好友请求已发送，等待对方验证');
-    renderAll();
-  }catch(e){
-    $('add-friend-hint').textContent='操作失败，请重试';
-    $('add-friend-hint').style.color='var(--danger)';
-    console.error('Add friend error:',e);
-  }
+if($('add-friend-card')) $('add-friend-card').onclick=openAddFriend;
+if($('add-friend-cancel')) $('add-friend-cancel').onclick=()=>{
+  const modal=$('add-friend-modal');
+  if(modal) modal.classList.remove('show');
 };
+
+// 使用事件委托绑定确定按钮，更可靠
+document.addEventListener('click',async(e)=>{
+  const btn=e.target.closest('#add-friend-confirm');
+  if(!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  const input=$('friend-username');
+  const hint=$('add-friend-hint');
+  const modal=$('add-friend-modal');
+  if(!input||!hint||!modal) return;
+
+  const target=input.value.trim();
+  if(!target){hint.textContent='请输入无聊号';hint.style.color='var(--danger)';return;}
+  if(!currentUser){toast('请先登录');return;}
+  if(target===currentUser.username){
+    hint.textContent='不能添加自己为好友';hint.style.color='var(--danger)';
+    return;
+  }
+  hint.textContent='发送中...';hint.style.color='var(--text-2)';
+  const r=await api('/api/friend-request/send',{from:currentUser.username,to:target,message:''});
+  if(!r.success){
+    hint.textContent=r.msg;
+    hint.style.color='var(--danger)';
+    return;
+  }
+  modal.classList.remove('show');
+  toast('好友请求已发送，等待对方验证');
+  renderAll();
+});
 
 /* ============ 公众号 ============ */
 const OFFICIAL_ACCOUNT='admin';
