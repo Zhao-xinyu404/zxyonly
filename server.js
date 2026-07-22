@@ -103,7 +103,7 @@ function supabaseRequest(path, method = 'GET', body = null, query = null) {
 async function supabaseUpsert(id, type, data) {
   if (!supabaseEnabled()) return;
   await supabaseRequest('/wuliao_data', 'POST', {
-    id,
+    id: type + '__' + id,
     type,
     data,
     updated_at: Date.now()
@@ -115,9 +115,9 @@ async function supabaseSelect(type) {
   return await supabaseRequest('/wuliao_data', 'GET', null, { type: `eq.${type}` });
 }
 
-async function supabaseDeleteById(id) {
+async function supabaseDeleteById(id, type) {
   if (!supabaseEnabled()) return;
-  await supabaseRequest('/wuliao_data', 'DELETE', null, { id: `eq.${id}` });
+  await supabaseRequest('/wuliao_data', 'DELETE', null, { id: `eq.${type + '__' + id}` });
 }
 
 async function supabaseDeleteByType(type) {
@@ -143,7 +143,8 @@ async function loadFromSupabase() {
     try {
       const rows = await supabaseSelect(type);
       for (const row of rows) {
-        typeMap[type](row.id, row.data);
+        const originalId = row.id.startsWith(type + '__') ? row.id.slice(type.length + 2) : row.id;
+        typeMap[type](originalId, row.data);
       }
       console.log(`[INFO] Loaded ${rows.length} ${type} from Supabase`);
     } catch (e) {
@@ -597,43 +598,41 @@ async function initDefaultData() {
     return;
   }
 
-  if (sbLoaded && sbUsers.length === 0) {
-    console.log('[INFO] Supabase empty, trying local files...');
-    if (DATA_DIR) {
-      try {
-        const files = fs.readdirSync(USERS_DIR).filter(f => f.endsWith('.json'));
-        if (files.length > 0) {
-          console.log('[INFO] Found', files.length, 'local users, syncing to Supabase...');
-          files.forEach(f => {
-            const u = readJSON(path.join(USERS_DIR, f), null);
-            if (u) {
-              memUsers[u.username] = u;
-              if (supabaseEnabled()) supabaseUpsert(u.username, 'users', u).catch(() => {});
-            }
-          });
-          
-          const friendFiles = fs.readdirSync(FRIENDS_DIR).filter(f => f.endsWith('.json'));
-          friendFiles.forEach(f => {
-            const username = f.replace('.json', '');
-            const list = readJSON(path.join(FRIENDS_DIR, f), []);
-            memFriends[username] = list;
-            if (supabaseEnabled()) supabaseUpsert(username, 'friends', list).catch(() => {});
-          });
+  /* Supabase为空或加载失败时，尝试从本地文件加载 */
+  if (DATA_DIR) {
+    try {
+      const files = fs.readdirSync(USERS_DIR).filter(f => f.endsWith('.json'));
+      if (files.length > 0) {
+        console.log('[INFO] Found', files.length, 'local users, loading...');
+        files.forEach(f => {
+          const u = readJSON(path.join(USERS_DIR, f), null);
+          if (u) {
+            memUsers[u.username] = u;
+            if (supabaseEnabled()) supabaseUpsert(u.username, 'users', u).catch(() => {});
+          }
+        });
+        
+        const friendFiles = fs.readdirSync(FRIENDS_DIR).filter(f => f.endsWith('.json'));
+        friendFiles.forEach(f => {
+          const username = f.replace('.json', '');
+          const list = readJSON(path.join(FRIENDS_DIR, f), []);
+          memFriends[username] = list;
+          if (supabaseEnabled()) supabaseUpsert(username, 'friends', list).catch(() => {});
+        });
 
-          const msgFiles = fs.readdirSync(MSG_DIR).filter(f => f.endsWith('.json'));
-          msgFiles.forEach(f => {
-            const key = f.replace('.json', '');
-            const list = readJSON(path.join(MSG_DIR, f), []);
-            memMsgs[key] = list;
-            if (supabaseEnabled()) supabaseUpsert(key, 'messages', list).catch(() => {});
-          });
+        const msgFiles = fs.readdirSync(MSG_DIR).filter(f => f.endsWith('.json'));
+        msgFiles.forEach(f => {
+          const key = f.replace('.json', '');
+          const list = readJSON(path.join(MSG_DIR, f), []);
+          memMsgs[key] = list;
+          if (supabaseEnabled()) supabaseUpsert(key, 'messages', list).catch(() => {});
+        });
 
-          console.log('[INFO] Local data synced to Supabase');
-          return;
-        }
-      } catch (e) {
-        console.error('[WARN] Failed to load from local files:', e.message);
+        console.log('[INFO] Local data loaded');
+        return;
       }
+    } catch (e) {
+      console.error('[WARN] Failed to load from local files:', e.message);
     }
   }
 
@@ -649,10 +648,8 @@ async function initDefaultData() {
     createMoment('alice', '今天天气真好~', [], []);
     createMoment('bob', '你好世界', [], []);
     console.log('[INFO] Default data initialized');
-  } else if (sbLoaded && sbUsers.length === 0) {
-    console.log('[INFO] Supabase enabled but empty, no default users created');
-  } else if (!sbLoaded) {
-    console.error('[ERROR] Supabase enabled but load failed! No data available.');
+  } else {
+    console.log('[INFO] Supabase enabled but no data found, starting with empty state');
   }
 }
 
