@@ -131,8 +131,8 @@
     font-size:16px;
     color:var(--text);
   }
-  .field input:focus + label,
-  .field input:not(:placeholder-shown) + label{
+  .field input:focus ~ label,
+  .field input:not(:placeholder-shown) ~ label{
     top:8px;transform:translateY(0);
     font-size:11px;color:var(--brand);
   }
@@ -1528,11 +1528,6 @@
           <i class="fas fa-qrcode qr"></i>
         </div>
         <div class="profile-menu">
-          <div class="list-row" onclick="toast('服务 敬请期待')">
-            <div class="avatar" style="background:transparent;"><i class="fas fa-wallet" style="color:#fa9d3b;"></i></div>
-            <div class="info"><div class="name">服务</div></div>
-            <i class="fas fa-chevron-right arrow"></i>
-          </div>
           <div class="list-row" onclick="toast('收藏 敬请期待')">
             <div class="avatar" style="background:transparent;"><i class="fas fa-star" style="color:#3b82f6;"></i></div>
             <div class="info"><div class="name">收藏</div></div>
@@ -1593,7 +1588,6 @@
     <div class="chat-input-bar">
       <button class="icon-btn" id="btn-emoji"><i class="far fa-face-smile"></i></button>
       <textarea id="chat-input" rows="1" placeholder="说点什么..."></textarea>
-      <button class="icon-btn"><i class="fas fa-microphone"></i></button>
       <button class="send-btn" id="btn-send">发送</button>
     </div>
   </div>
