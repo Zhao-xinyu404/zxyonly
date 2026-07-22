@@ -210,7 +210,7 @@ const MOMENT_COMMENTS_DIR = DATA_DIR ? path.join(DATA_DIR, 'moment-comments') : 
 const AVATAR_DIR = DATA_DIR ? path.join(DATA_DIR, 'avatars') : null;
 
 if (DATA_DIR) {
-  [USERS_DIR, FRIENDS_DIR, MSG_DIR, REQ_DIR, MOMENTS_DIR, MOMENT_LIKES_DIR, MOMENT_COMMENTS_DIR, AVATAR_DIR].forEach(d => {
+  [USERS_DIR, FRIENDS_DIR, MSG_DIR, REQ_DIR, MOMENTS_DIR, MOMENT_LIKES_DIR, MOMENT_COMMENTS_DIR, AVATAR_DIR, groupsDir()].forEach(d => {
     try { fs.mkdirSync(d, { recursive: true }); } catch (e) {}
   });
 }
@@ -225,6 +225,8 @@ let memMomentLikes = {};
 let memMomentComments = {};
 let memFeatureFlags = { scanEnabled: true };
 let memReadMarkers = {};
+let memGroups = {};
+let memGroupMessages = {};
 
 /* ============ 文件工具 ============ */
 function userFile(u) { return path.join(USERS_DIR, u + '.json'); }
@@ -237,6 +239,9 @@ function momentsFile() { return path.join(MOMENTS_DIR, 'all.json'); }
 function momentLikesFile(id) { return path.join(MOMENT_LIKES_DIR, id + '.json'); }
 function momentCommentsFile(id) { return path.join(MOMENT_COMMENTS_DIR, id + '.json'); }
 function readMarkersFile(username) { return path.join(MSG_DIR, 'read_' + username + '.json'); }
+function groupsDir() { return DATA_DIR ? path.join(DATA_DIR, 'groups') : null; }
+function groupFile(groupId) { return path.join(groupsDir(), groupId + '.json'); }
+function groupMsgFile(groupId) { return path.join(groupsDir(), groupId + '_msgs.json'); }
 
 function readJSON(file, def) {
   if (!file || !DATA_DIR) return def;
@@ -473,8 +478,22 @@ function markConversationRead(username, withUser) {
 
 function countUnread(username, withUser) {
   const markers = getReadMarkers(username);
-  const lastRead = markers[withUser] || 0;
+  let lastRead = markers[withUser];
   const msgs = getMsgs(username, withUser);
+  
+  if (lastRead === undefined) {
+    if (msgs.length > 0) {
+      const lastMsg = msgs[msgs.length - 1];
+      markers[withUser] = lastMsg.time;
+      saveReadMarkers(username, markers);
+      lastRead = lastMsg.time;
+    } else {
+      lastRead = Date.now();
+      markers[withUser] = lastRead;
+      saveReadMarkers(username, markers);
+    }
+  }
+  
   let count = 0;
   for (let i = msgs.length - 1; i >= 0; i--) {
     if (msgs[i].time > lastRead && msgs[i].from === withUser) count++;
@@ -492,6 +511,97 @@ function getTotalUnread(username) {
     total += countUnread(username, f);
   });
   return total;
+}
+
+/* ============ 群聊 ============ */
+function getGroup(groupId) {
+  if (DATA_DIR) {
+    const g = readJSON(groupFile(groupId), null);
+    if (g) return g;
+  }
+  return memGroups[groupId] || null;
+}
+
+function saveGroup(group) {
+  memGroups[group.id] = group;
+  if (DATA_DIR) writeJSON(groupFile(group.id), group);
+  return true;
+}
+
+function getGroupMessages(groupId) {
+  if (DATA_DIR) {
+    const m = readJSON(groupMsgFile(groupId), null);
+    if (m) return m;
+  }
+  return memGroupMessages[groupId] || [];
+}
+
+function saveGroupMessages(groupId, messages) {
+  memGroupMessages[groupId] = messages;
+  if (DATA_DIR) writeJSON(groupMsgFile(groupId), messages);
+  return true;
+}
+
+function createGroup(creator, members, name) {
+  const groupId = 'group_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  const allMembers = [...new Set([creator, ...members])];
+  const group = {
+    id: groupId,
+    name: name || `${getUser(creator)?.nickname}的群聊`,
+    creator,
+    members: allMembers,
+    createdAt: Date.now()
+  };
+  saveGroup(group);
+  saveGroupMessages(groupId, []);
+  return group;
+}
+
+function addGroupMember(groupId, username) {
+  const group = getGroup(groupId);
+  if (!group) return { success: false, msg: '群不存在' };
+  if (group.members.includes(username)) return { success: false, msg: '已在群内' };
+  group.members.push(username);
+  saveGroup(group);
+  return { success: true };
+}
+
+function removeGroupMember(groupId, username) {
+  const group = getGroup(groupId);
+  if (!group) return { success: false, msg: '群不存在' };
+  group.members = group.members.filter(m => m !== username);
+  saveGroup(group);
+  return { success: true };
+}
+
+function sendGroupMessage(groupId, from, content) {
+  const group = getGroup(groupId);
+  if (!group) return { success: false, msg: '群不存在' };
+  if (!group.members.includes(from)) return { success: false, msg: '不是群成员' };
+  
+  const msg = {
+    id: 'gm_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    groupId,
+    from,
+    content,
+    time: Date.now()
+  };
+  
+  const msgs = getGroupMessages(groupId);
+  msgs.push(msg);
+  saveGroupMessages(groupId, msgs);
+  
+  return { success: true, message: msg };
+}
+
+function getUserGroups(username) {
+  const result = [];
+  Object.values(memGroups).forEach(g => {
+    if (g.members.includes(username)) {
+      result.push(g);
+    }
+  });
+  return result;
 }
 
 /* ============ 朋友圈 ============ */
@@ -808,6 +918,63 @@ const server = http.createServer(async (req, res) => {
     user.password = newPassword;
     saveUser(user);
     return send(res, 200, { success: true });
+  }
+
+  /* ====== 创建群聊 ====== */
+  if (req.method === 'POST' && url === '/api/groups/create') {
+    const body = await readBody(req);
+    const { username, members, name } = body;
+    if (!username || !members || !Array.isArray(members)) return send(res, 200, { success: false, msg: '参数错误' });
+    if (members.length === 0) return send(res, 200, { success: false, msg: '至少添加一位好友' });
+    for (const m of members) {
+      if (!getUser(m) || !areFriends(username, m)) return send(res, 200, { success: false, msg: `${m}不是你的好友` });
+    }
+    const group = createGroup(username, members, name);
+    return send(res, 200, { success: true, group });
+  }
+
+  /* ====== 获取用户群列表 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/groups/user/')) {
+    const username = decodeURIComponent(url.slice(17));
+    const groups = getUserGroups(username);
+    return send(res, 200, { success: true, groups });
+  }
+
+  /* ====== 获取群详情 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/groups/')) {
+    const groupId = decodeURIComponent(url.slice(12));
+    const group = getGroup(groupId);
+    if (!group) return send(res, 200, { success: false, msg: '群不存在' });
+    return send(res, 200, { success: true, group });
+  }
+
+  /* ====== 获取群消息 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/group-messages/')) {
+    const groupId = decodeURIComponent(url.slice(20));
+    const msgs = getGroupMessages(groupId);
+    return send(res, 200, { success: true, messages: msgs });
+  }
+
+  /* ====== 发送群消息 ====== */
+  if (req.method === 'POST' && url === '/api/group-messages/send') {
+    const body = await readBody(req);
+    const { username, groupId, content } = body;
+    if (!username || !groupId || !content) return send(res, 200, { success: false, msg: '参数错误' });
+    const result = sendGroupMessage(groupId, username, content);
+    return send(res, 200, result);
+  }
+
+  /* ====== 添加群成员 ====== */
+  if (req.method === 'POST' && url === '/api/groups/add-member') {
+    const body = await readBody(req);
+    const { username, groupId, member } = body;
+    if (!username || !groupId || !member) return send(res, 200, { success: false, msg: '参数错误' });
+    const group = getGroup(groupId);
+    if (!group) return send(res, 200, { success: false, msg: '群不存在' });
+    if (!group.members.includes(username)) return send(res, 200, { success: false, msg: '你不是群成员' });
+    if (!getUser(member) || !areFriends(username, member)) return send(res, 200, { success: false, msg: `${member}不是你的好友` });
+    const result = addGroupMember(groupId, member);
+    return send(res, 200, result);
   }
 
   /* ====== 发送好友请求 ====== */

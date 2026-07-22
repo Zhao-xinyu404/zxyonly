@@ -578,6 +578,7 @@
   #chat-detail-view.show{
     display:flex;
     transform:translateX(0);
+    touch-action:pan-y;
   }
 
   /* ===== 表情选择器 ===== */
@@ -990,10 +991,42 @@
   }
 
   /* 朋友圈页 */
+  #create-group-view{
+    position:absolute;
+    inset:0;
+    background:var(--bg);
+    display:none;
+    flex-direction:column;
+    z-index:50;
+    transform:translateX(100%);
+    transition:transform .28s cubic-bezier(.2,.8,.2,1);
+  }
+  #create-group-view.show{
+    display:flex;
+    transform:translateX(0);
+    touch-action:pan-y;
+  }
+
+  #group-chat-view{
+    position:absolute;
+    inset:0;
+    background:var(--bg);
+    display:none;
+    flex-direction:column;
+    z-index:50;
+    transform:translateX(100%);
+    transition:transform .28s cubic-bezier(.2,.8,.2,1);
+  }
+  #group-chat-view.show{
+    display:flex;
+    transform:translateX(0);
+    touch-action:pan-y;
+  }
+
   #moments-view{
     position:absolute;
     inset:0;
-    background:#fff;
+    background:var(--bg);
     display:none;
     flex-direction:column;
     z-index:50;
@@ -1823,6 +1856,11 @@
             <div class="info"><div class="name">朋友圈</div></div>
             <i class="fas fa-chevron-right arrow"></i>
           </div>
+          <div class="list-row" onclick="openCreateGroup()">
+            <div class="avatar" style="background:transparent;"><i class="fas fa-users" style="color:#3b82f6;"></i></div>
+            <div class="info"><div class="name">发起群聊</div></div>
+            <i class="fas fa-chevron-right arrow"></i>
+          </div>
         </div>
         <div class="profile-menu">
           <div class="list-row" onclick="toast('设置 敬请期待')">
@@ -1965,6 +2003,30 @@
       <button class="icon-btn" onclick="openAddFriend()"><i class="fas fa-plus"></i></button>
     </div>
     <div class="nf-content" id="nf-content"></div>
+  </div>
+
+  <!-- ============ 建群选择页 ============ -->
+  <div id="create-group-view">
+    <div class="chat-detail-header">
+      <button class="icon-btn" id="cg-back"><i class="fas fa-chevron-left"></i></button>
+      <h3>发起群聊</h3>
+      <button class="icon-btn" id="cg-create"><i class="fas fa-check"></i></button>
+    </div>
+    <div class="nf-content" id="cg-content"></div>
+  </div>
+
+  <!-- ============ 群聊详情页 ============ -->
+  <div id="group-chat-view">
+    <div class="chat-detail-header">
+      <button class="icon-btn" id="gc-back"><i class="fas fa-chevron-left"></i></button>
+      <h3 id="gc-name">群聊</h3>
+      <button class="icon-btn"><i class="fas fa-ellipsis"></i></button>
+    </div>
+    <div class="chat-messages" id="gc-messages"></div>
+    <div class="chat-input-bar">
+      <textarea id="gc-input" rows="1" placeholder="发消息..."></textarea>
+      <button class="send-btn" id="gc-btn-send">发送</button>
+    </div>
   </div>
 
   <!-- ============ 朋友圈页 ============ -->
@@ -2393,7 +2455,11 @@ async function renderChatList(force=false){
   if(!currentUser) return;
   const r=await api(`/api/friends/${currentUser.username}`,'','GET');
   const friends=r.success?r.friends:[];
-  if(friends.length===0){
+  
+  const gr=await api(`/api/groups/user/${currentUser.username}`,'','GET');
+  const groups=gr.success?gr.groups:[];
+  
+  if(friends.length===0&&groups.length===0){
     lastChatListHash='';
     $('chat-list').innerHTML=`<div class="empty-state">
       <i class="fas fa-comments"></i>
@@ -2401,43 +2467,81 @@ async function renderChatList(force=false){
     </div>`;
     return;
   }
-  const sessions=await Promise.all(friends.map(async f=>{
+  
+  const friendSessions=await Promise.all(friends.map(async f=>{
     const mr=await api(`/api/messages/${currentUser.username}/${f.username}`,'','GET');
     const msgs=mr.success?mr.messages:[];
     const last=msgs[msgs.length-1];
     return {
+      type:'friend',
+      id:f.username,
       username:f.username,
       user:f,
+      name:f.nickname,
       lastMsg:last?last.content:'',
       lastTime:last?last.time:0,
       unread:unreadMap[f.username]||0
     };
   }));
+  
+  const groupSessions=await Promise.all(groups.map(async g=>{
+    const mr=await api(`/api/group-messages/${g.id}`,'','GET');
+    const msgs=mr.success?mr.messages:[];
+    const last=msgs[msgs.length-1];
+    return {
+      type:'group',
+      id:g.id,
+      name:g.name,
+      lastMsg:last?last.content:'',
+      lastTime:last?last.time:g.createdAt,
+      unread:0
+    };
+  }));
+  
+  const sessions=[...friendSessions,...groupSessions];
   sessions.sort((a,b)=>b.lastTime-a.lastTime);
   
-  const newHash=sessions.map(s=>s.username+'_'+s.lastTime+'_'+s.unread).join('|');
+  const newHash=sessions.map(s=>s.id+'_'+s.lastTime+'_'+s.unread).join('|');
   if(!force && newHash===lastChatListHash) return;
   lastChatListHash=newHash;
   
   const list=$('chat-list');
   list.innerHTML=sessions.map(s=>{
-    if(!s.user) return '';
     const timeStr=s.lastTime?formatChatTime(s.lastTime):'';
     const unreadBadge=s.unread>0?`<span class="badge">${s.unread>99?'99+':s.unread}</span>`:'';
-    return `<div class="list-row" data-friend="${s.username}">
-      ${userAvatarHTML(s.user,s.user.nickname)}
-      <div class="info">
-        <div class="name">${escapeHTML(s.user.nickname)}</div>
-        <div class="desc">${s.lastMsg?escapeHTML(s.lastMsg):'开始聊天吧 →'}</div>
-      </div>
-      <div class="meta">
-        <div>${timeStr}</div>
-        ${unreadBadge}
-      </div>
-    </div>`;
+    if(s.type==='group'){
+      return `<div class="list-row" data-group="${s.id}">
+        <div class="avatar" style="background:#3b82f6;"><i class="fas fa-users" style="font-size:18px;color:#fff;"></i></div>
+        <div class="info">
+          <div class="name">${escapeHTML(s.name)}</div>
+          <div class="desc">${s.lastMsg?escapeHTML(s.lastMsg):'群聊已创建'}</div>
+        </div>
+        <div class="meta">
+          <div>${timeStr}</div>
+          ${unreadBadge}
+        </div>
+      </div>`;
+    }else{
+      if(!s.user) return '';
+      return `<div class="list-row" data-friend="${s.username}">
+        ${userAvatarHTML(s.user,s.user.nickname)}
+        <div class="info">
+          <div class="name">${escapeHTML(s.user.nickname)}</div>
+          <div class="desc">${s.lastMsg?escapeHTML(s.lastMsg):'开始聊天吧 →'}</div>
+        </div>
+        <div class="meta">
+          <div>${timeStr}</div>
+          ${unreadBadge}
+        </div>
+      </div>`;
+    }
   }).join('');
-  list.querySelectorAll('.list-row').forEach(row=>{
+  
+  list.querySelectorAll('.list-row[data-friend]').forEach(row=>{
     row.onclick=()=>openChat(row.dataset.friend);
+  });
+  list.querySelectorAll('.list-row[data-group]').forEach(row=>{
+    row.onclick=()=>openGroupChat(row.dataset.group);
   });
 }
 
@@ -3763,6 +3867,228 @@ function renderAll(){
   renderProfile();
   updateNewFriendBadge();
 }
+
+/* ============ 群聊 ============ */
+let selectedGroupMembers=[];
+let currentGroupId=null;
+let gcPollTimer=null;
+let lastGCMsgsHash='';
+
+async function openCreateGroup(){
+  $('create-group-view').classList.add('show');
+  selectedGroupMembers=[];
+  renderCreateGroupList();
+}
+$('cg-back').onclick=()=>$('create-group-view').classList.remove('show');
+
+async function renderCreateGroupList(){
+  if(!currentUser) return;
+  const r=await api(`/api/friends/${currentUser.username}`,'','GET');
+  const friends=r.success?r.friends:[];
+  let html='';
+  for(const f of friends){
+    const selected=selectedGroupMembers.includes(f.username);
+    html+=`<div class="list-row" onclick="toggleGroupMember('${f.username}',this)">
+      <div class="avatar" style="background:${avatarColors[f.username]||avatarColors.default}">${f.nickname[0]}</div>
+      <div class="info"><div class="name">${escapeHTML(f.nickname)}</div></div>
+      <div class="select-icon" style="${selected?'display:flex':'display:none'}">
+        <i class="fas fa-check" style="color:var(--brand);font-size:18px;"></i>
+      </div>
+    </div>`;
+  }
+  $('cg-content').innerHTML=html||'<div class="search-empty"><p>暂无好友</p></div>';
+}
+
+function toggleGroupMember(username,el){
+  const idx=selectedGroupMembers.indexOf(username);
+  if(idx>-1){
+    selectedGroupMembers.splice(idx,1);
+  }else{
+    selectedGroupMembers.push(username);
+  }
+  renderCreateGroupList();
+}
+
+$('cg-create').onclick=async()=>{
+  if(selectedGroupMembers.length===0){
+    toast('请至少选择一位好友');
+    return;
+  }
+  const name=prompt('输入群聊名称：',`${currentUser.nickname}的群聊`);
+  if(name===null) return;
+  const r=await api('/api/groups/create',{
+    username:currentUser.username,
+    members:selectedGroupMembers,
+    name:name.trim()||`${currentUser.nickname}的群聊`
+  });
+  if(r.success){
+    toast('群聊创建成功');
+    $('create-group-view').classList.remove('show');
+    openGroupChat(r.group.id);
+  }else{
+    toast(r.msg);
+  }
+};
+
+async function openGroupChat(groupId){
+  $('group-chat-view').classList.add('show');
+  currentGroupId=groupId;
+  const r=await api(`/api/groups/${groupId}`,'','GET');
+  if(r.success){
+    $('gc-name').textContent=r.group.name;
+  }
+  renderGroupMessages();
+  startGCPolling();
+}
+$('gc-back').onclick=()=>{
+  $('group-chat-view').classList.remove('show');
+  currentGroupId=null;
+  stopGCPolling();
+};
+
+function startGCPolling(){
+  stopGCPolling();
+  gcPollTimer=setInterval(()=>{
+    if(currentUser&&currentGroupId&&$('group-chat-view').classList.contains('show')){
+      renderGroupMessages();
+    }
+  },3000);
+}
+function stopGCPolling(){
+  if(gcPollTimer){clearInterval(gcPollTimer);gcPollTimer=null;}
+}
+
+async function renderGroupMessages(){
+  if(!currentUser||!currentGroupId) return;
+  const r=await api(`/api/group-messages/${currentGroupId}`,'','GET');
+  const msgs=r.success?r.messages:[];
+  const newHash=msgs.length+'_'+(msgs[msgs.length-1]?.time||0);
+  if(newHash===lastGCMsgsHash) return;
+  lastGCMsgsHash=newHash;
+
+  const box=$('gc-messages');
+  if(!box) return;
+  let html='';
+  let lastDate=null;
+  for(const m of msgs){
+    const d=new Date(m.time);
+    const dateKey=d.toDateString();
+    if(dateKey!==lastDate){
+      html+=`<div class="msg-time">${formatChatTime(m.time)}</div>`;
+      lastDate=dateKey;
+    }
+    const isSelf=m.from===currentUser.username;
+    const userR=await api(`/api/user/${m.from}`,'','GET');
+    const nickname=userR.success?userR.user.nickname:m.from;
+    html+=`<div class="msg-item ${isSelf?'self':'other'}">
+      <div class="msg-avatar" style="background:${avatarColors[m.from]||avatarColors.default}">${nickname[0]}</div>
+      <div class="msg-content">
+        ${!isSelf?`<div class="msg-name">${escapeHTML(nickname)}</div>`:''}
+        <div class="msg-bubble">${escapeHTML(m.content)}</div>
+        <div class="msg-time">${formatChatTime(m.time)}</div>
+      </div>
+    </div>`;
+  }
+  box.innerHTML=html||'<div class="search-empty"><p>群聊还没有消息</p></div>';
+  box.scrollTop=box.scrollHeight;
+}
+
+function sendGroupMessage(){
+  if(!currentUser||!currentGroupId) return;
+  const input=$('gc-input');
+  const text=input.value.trim();
+  if(!text) return;
+  api('/api/group-messages/send',{
+    username:currentUser.username,
+    groupId:currentGroupId,
+    content:text
+  },'POST').then(res=>{
+    if(res.success){
+      input.value='';
+      input.style.height='auto';
+      renderGroupMessages();
+    }else{
+      toast(res.msg||'发送失败');
+    }
+  });
+}
+$('gc-btn-send').onclick=sendGroupMessage;
+$('gc-input').addEventListener('input',function(){autoResize(this);});
+$('gc-input').addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&!e.shiftKey){
+    e.preventDefault();
+    sendGroupMessage();
+  }
+});
+
+/* ============ 侧边滑退出 ============ */
+let swipeStartX=0;
+let swipeStartY=0;
+let swipeTarget=null;
+const SWIPE_THRESHOLD=60;
+
+function getSwipeableViews(){
+  return [
+    {id:'chat-detail-view',backBtn:'chat-back'},
+    {id:'group-chat-view',backBtn:'gc-back'},
+    {id:'create-group-view',backBtn:'cg-back'},
+    {id:'official-account-view',backBtn:'oa-back'},
+    {id:'moments-view',backBtn:'moments-back'},
+    {id:'search-view',backBtn:'search-back'},
+    {id:'video-view',backBtn:'video-back'},
+    {id:'scanner-view',backBtn:'scanner-back'}
+  ];
+}
+
+function closeCurrentView(){
+  const views=getSwipeableViews();
+  for(const v of views){
+    const el=$(v.id);
+    if(el&&el.classList.contains('show')){
+      if(v.id==='official-account-view') stopOAPolling();
+      el.classList.remove('show');
+      return;
+    }
+  }
+}
+
+document.addEventListener('touchstart',(e)=>{
+  swipeStartX=e.touches[0].clientX;
+  swipeStartY=e.touches[0].clientY;
+  swipeTarget=null;
+  const views=getSwipeableViews();
+  for(const v of views){
+    const el=$(v.id);
+    if(el&&el.classList.contains('show')){
+      swipeTarget=el;
+      break;
+    }
+  }
+},true);
+
+document.addEventListener('touchmove',(e)=>{
+  if(!swipeTarget) return;
+  const dx=e.touches[0].clientX-swipeStartX;
+  const dy=e.touches[0].clientY-swipeStartY;
+  if(dx>20&&Math.abs(dy)<Math.abs(dx)*1.5&&swipeStartX<50){
+    const progress=Math.min(dx/200,1);
+    swipeTarget.style.transform=`translateX(${progress*100}%)`;
+    swipeTarget.style.transition='none';
+  }
+},true);
+
+document.addEventListener('touchend',(e)=>{
+  if(!swipeTarget) return;
+  const dx=e.changedTouches[0].clientX-swipeStartX;
+  const dy=e.changedTouches[0].clientY-swipeStartY;
+  if(dx>SWIPE_THRESHOLD&&Math.abs(dy)<Math.abs(dx)*1.5){
+    closeCurrentView();
+  }else{
+    swipeTarget.style.transform='translateX(0)';
+    swipeTarget.style.transition='transform .28s cubic-bezier(.2,.8,.2,1)';
+  }
+  swipeTarget=null;
+},true);
 
 /* ============ 初始化 ============ */
 refreshAuth();
