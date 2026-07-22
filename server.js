@@ -13,7 +13,11 @@ function supabaseEnabled() {
 
 function supabaseRequest(path, method = 'GET', body = null, query = null) {
   return new Promise((resolve, reject) => {
-    const url = new URL(SUPABASE_URL + '/rest/v1' + path);
+    let baseUrl = SUPABASE_URL;
+    if (baseUrl.endsWith('/rest/v1')) baseUrl = baseUrl.slice(0, -9);
+    if (baseUrl.endsWith('/rest/v1/')) baseUrl = baseUrl.slice(0, -10);
+    if (!baseUrl.endsWith('/')) baseUrl += '/';
+    const url = new URL(baseUrl + 'rest/v1' + path);
     if (query) {
       Object.entries(query).forEach(([k, v]) => url.searchParams.set(k, v));
     }
@@ -633,23 +637,23 @@ async function initDefaultData() {
     }
   }
 
-  if (supabaseEnabled() && !sbOk) {
-    console.error('[WARN] Supabase enabled but connection failed. Data will NOT persist across restarts!');
+  if (!supabaseEnabled()) {
+    console.log('[INFO] Supabase not enabled, initializing default users');
+    DEFAULT_USERS.forEach(u => {
+      saveUser(u);
+      saveFriends(u.username, []);
+      saveIncomingRequests(u.username, []);
+      saveOutgoingRequests(u.username, []);
+    });
+    addFriend('alice', 'bob');
+    createMoment('alice', '今天天气真好~', [], []);
+    createMoment('bob', '你好世界', [], []);
+    console.log('[INFO] Default data initialized');
+  } else if (sbLoaded && sbUsers.length === 0) {
+    console.log('[INFO] Supabase enabled but empty, no default users created');
+  } else if (!sbLoaded) {
+    console.error('[ERROR] Supabase enabled but load failed! No data available.');
   }
-  
-  console.log('[INFO] Initializing default users');
-  DEFAULT_USERS.forEach(u => {
-    saveUser(u);
-    saveFriends(u.username, []);
-    saveIncomingRequests(u.username, []);
-    saveOutgoingRequests(u.username, []);
-  });
-  addFriend('alice', 'bob');
-
-  createMoment('alice', '今天天气真好~', [], []);
-  createMoment('bob', '你好世界', [], []);
-
-  console.log('[INFO] Default data initialized');
 }
 
 /* ============ HTTP 工具 ============ */
