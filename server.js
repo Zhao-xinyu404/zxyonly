@@ -444,19 +444,34 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/register') {
     const body = await readBody(req);
     const { username, password, nickname, avatar, email } = body;
-    if (!username || !password || !nickname) return send(res, 200, { success: false, msg: '请填写完整信息' });
-    if (username.length < 3) return send(res, 200, { success: false, msg: '无聊号至少3个字符' });
+    if (!password || !nickname) return send(res, 200, { success: false, msg: '请填写完整信息' });
     if (password.length < 4) return send(res, 200, { success: false, msg: '密码至少4位' });
-    if (getUser(username)) return send(res, 200, { success: false, msg: '该无聊号已被注册' });
+
+    // 自动生成无聊号（优先用传入的username，否则用邮箱前缀，否则随机生成）
+    let finalUsername = username ? username.trim() : '';
+    if (!finalUsername && email) {
+      finalUsername = email.split('@')[0].replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    }
+    if (!finalUsername) {
+      finalUsername = 'user' + Math.floor(Math.random() * 100000);
+    }
+    // 如果无聊号已存在，追加随机数
+    let baseUsername = finalUsername;
+    let suffix = 0;
+    while (getUser(finalUsername)) {
+      suffix++;
+      finalUsername = baseUsername + suffix;
+    }
+
     if (email) {
       const allUsers = getAllUsers();
       if (allUsers.find(u => u.email === email)) return send(res, 200, { success: false, msg: '该邮箱已被注册' });
     }
-    const user = { username, password, nickname, avatar: avatar || 1, bio: '', email: email || '', createdAt: Date.now() };
+    const user = { username: finalUsername, password, nickname, avatar: avatar || 1, bio: '', email: email || '', createdAt: Date.now() };
     saveUser(user);
-    saveFriends(username, []);
-    saveIncomingRequests(username, []);
-    saveOutgoingRequests(username, []);
+    saveFriends(finalUsername, []);
+    saveIncomingRequests(finalUsername, []);
+    saveOutgoingRequests(finalUsername, []);
     return send(res, 200, { success: true, user });
   }
 
