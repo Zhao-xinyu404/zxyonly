@@ -2,6 +2,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 
 /* ============ Supabase 配置 ============ */
 const SUPABASE_URL = process.env.SUPABASE_URL || '';
@@ -188,9 +189,10 @@ const REQ_DIR = DATA_DIR ? path.join(DATA_DIR, 'friend-requests') : null;
 const MOMENTS_DIR = DATA_DIR ? path.join(DATA_DIR, 'moments') : null;
 const MOMENT_LIKES_DIR = DATA_DIR ? path.join(DATA_DIR, 'moment-likes') : null;
 const MOMENT_COMMENTS_DIR = DATA_DIR ? path.join(DATA_DIR, 'moment-comments') : null;
+const AVATAR_DIR = DATA_DIR ? path.join(DATA_DIR, 'avatars') : null;
 
 if (DATA_DIR) {
-  [USERS_DIR, FRIENDS_DIR, MSG_DIR, REQ_DIR, MOMENTS_DIR, MOMENT_LIKES_DIR, MOMENT_COMMENTS_DIR].forEach(d => {
+  [USERS_DIR, FRIENDS_DIR, MSG_DIR, REQ_DIR, MOMENTS_DIR, MOMENT_LIKES_DIR, MOMENT_COMMENTS_DIR, AVATAR_DIR].forEach(d => {
     try { fs.mkdirSync(d, { recursive: true }); } catch (e) {}
   });
 }
@@ -903,6 +905,66 @@ const server = http.createServer(async (req, res) => {
     }
 
     return send(res, 200, { success: true, msg: '所有数据已清空' });
+  }
+
+  /* ====== 头像上传 ====== */
+  if (req.method === 'POST' && url === '/api/avatar/upload') {
+    const body = await readBody(req);
+    const { username, image } = body;
+    if (!username || !image) return send(res, 200, { success: false, msg: '参数错误' });
+    
+    const user = getUser(username);
+    if (!user) return send(res, 200, { success: false, msg: '用户不存在' });
+    
+    try {
+      const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      const maxSize = 500 * 1024;
+      let compressedBuffer = buffer;
+      let quality = 0.8;
+      
+      while (compressedBuffer.length > maxSize && quality > 0.1) {
+        compressedBuffer = await sharp(compressedBuffer)
+          .resize(512, 512, { fit: 'inside' })
+          .jpeg({ quality: Math.round(quality * 100) })
+          .toBuffer();
+        quality -= 0.1;
+      }
+      
+      const avatarFileName = `${username}.jpg`;
+      const avatarPath = path.join(AVATAR_DIR, avatarFileName);
+      fs.writeFileSync(avatarPath, compressedBuffer);
+      
+      user.customAvatar = avatarFileName;
+      saveUser(user);
+      
+      return send(res, 200, {
+        success: true,
+        size: compressedBuffer.length,
+        originalSize: buffer.length
+      });
+    } catch (e) {
+      console.error('[ERROR] Avatar upload failed:', e.message);
+      return send(res, 200, { success: false, msg: '上传失败' });
+    }
+  }
+
+  /* ====== 获取头像 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/avatar/')) {
+    const filename = url.slice(13);
+    const avatarPath = path.join(AVATAR_DIR, filename);
+    if (AVATAR_DIR && fs.existsSync(avatarPath)) {
+      const content = fs.readFileSync(avatarPath);
+      res.writeHead(200, {
+        'Content-Type': 'image/jpeg',
+        'Content-Length': Buffer.byteLength(content),
+        'Cache-Control': 'public, max-age=86400'
+      });
+      res.end(content);
+      return;
+    }
+    return send(res, 404, { error: 'Avatar not found' });
   }
 
   /* ====== 静态文件服务 ====== */
