@@ -695,7 +695,7 @@ const server = http.createServer(async (req, res) => {
       dataDir: DATA_DIR,
       userCount: getAllUsers().length,
       momentCount: getAllMoments().length,
-      supabaseEnabled: supabaseEnabled(),
+      supabaseEnabled: supabaseEnabled() ? true : false,
       supabaseUrl: SUPABASE_URL ? 'configured' : 'not set',
       supabaseKey: SUPABASE_KEY ? 'configured' : 'not set'
     });
