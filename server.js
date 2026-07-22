@@ -1,165 +1,143 @@
 const http = require('http');
+
+/* ============ 数据存储 ============ */
+/* 使用内存存储 + 文件存储双模式 */
+/* Render上文件可能丢失，内存保证当前会话可用 */
+
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config();
 
-let users = [];
-let friendsData = {};
-let messagesData = {};
-
-let db = null;
-
-async function connectMongo() {
-  if (!process.env.MONGODB_URI) {
-    console.warn('[WARN] MONGODB_URI not set, using memory storage');
-    return false;
+const DATA_DIR = (() => {
+  const dirs = ['/tmp/wuliao-data', path.join(__dirname, 'data')];
+  for (const d of dirs) {
+    try {
+      fs.mkdirSync(d, { recursive: true });
+      fs.writeFileSync(path.join(d, '.test'), '1');
+      fs.unlinkSync(path.join(d, '.test'));
+      console.log('[INFO] Using data dir:', d);
+      return d;
+    } catch (e) {}
   }
-  
+  return null;
+})();
+
+const USERS_DIR = DATA_DIR ? path.join(DATA_DIR, 'users') : null;
+const FRIENDS_DIR = DATA_DIR ? path.join(DATA_DIR, 'friends') : null;
+const MSG_DIR = DATA_DIR ? path.join(DATA_DIR, 'messages') : null;
+
+if (DATA_DIR) {
+  [USERS_DIR, FRIENDS_DIR, MSG_DIR].forEach(d => {
+    try { fs.mkdirSync(d, { recursive: true }); } catch (e) {}
+  });
+}
+
+/* 内存存储（备份） */
+let memUsers = {};
+let memFriends = {};
+let memMsgs = {};
+
+function userFile(u) { return path.join(USERS_DIR, u + '.json'); }
+function friendsFile(u) { return path.join(FRIENDS_DIR, u + '.json'); }
+function msgFile(a, b) { return path.join(MSG_DIR, [a, b].sort().join('__') + '.json'); }
+
+function readJSON(file, def) {
+  if (!file || !DATA_DIR) return def;
   try {
-    const { MongoClient } = require('mongodb');
-    const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
-    db = client.db();
-    console.log('[INFO] Connected to MongoDB');
-    await initCollections();
+    if (fs.existsSync(file)) {
+      return JSON.parse(fs.readFileSync(file, 'utf8'));
+    }
+  } catch (e) {}
+  return def;
+}
+
+function writeJSON(file, data) {
+  if (!file || !DATA_DIR) return false;
+  try {
+    fs.writeFileSync(file, JSON.stringify(data, null, 2));
     return true;
   } catch (e) {
-    console.error('[ERROR] Failed to connect to MongoDB:', e.message);
+    console.error('[ERROR] Write failed:', e.message);
     return false;
   }
 }
 
-async function initCollections() {
-  if (!db) return;
-  
-  const collections = await db.listCollections().toArray();
-  const names = collections.map(c => c.name);
-  
-  if (!names.includes('users')) {
-    await db.createCollection('users');
-    await db.collection('users').createIndex({ username: 1 }, { unique: true });
-    console.log('[INFO] Created users collection');
+/* ============ 用户操作 ============ */
+function getUser(username) {
+  if (DATA_DIR) {
+    const u = readJSON(userFile(username), null);
+    if (u) return u;
   }
-  
-  if (!names.includes('friends')) {
-    await db.createCollection('friends');
-    await db.collection('friends').createIndex({ username: 1 });
-    console.log('[INFO] Created friends collection');
-  }
-  
-  if (!names.includes('messages')) {
-    await db.createCollection('messages');
-    await db.collection('messages').createIndex({ from: 1, to: 1 });
-    console.log('[INFO] Created messages collection');
-  }
+  return memUsers[username] || null;
 }
 
-async function getUser(username) {
-  if (db) {
-    return await db.collection('users').findOne({ username });
-  }
-  return users.find(u => u.username === username);
-}
-
-async function saveUser(user) {
-  if (db) {
-    try {
-      await db.collection('users').updateOne(
-        { username: user.username },
-        { $set: user },
-        { upsert: true }
-      );
-      return true;
-    } catch (e) {
-      console.error('[ERROR] Failed to save user:', e.message);
-      return false;
-    }
-  }
-  const idx = users.findIndex(u => u.username === user.username);
-  if (idx >= 0) users[idx] = user;
-  else users.push(user);
+function saveUser(user) {
+  memUsers[user.username] = user;
+  if (DATA_DIR) writeJSON(userFile(user.username), user);
   return true;
 }
 
-async function getAllUsers() {
-  if (db) {
-    return await db.collection('users').find({}).toArray();
-  }
-  return users;
-}
-
-async function getFriends(username) {
-  if (db) {
-    const doc = await db.collection('friends').findOne({ username });
-    return doc ? doc.list : [];
-  }
-  return friendsData[username] || [];
-}
-
-async function saveFriends(username, list) {
-  if (db) {
+function getAllUsers() {
+  if (DATA_DIR) {
     try {
-      await db.collection('friends').updateOne(
-        { username },
-        { $set: { list } },
-        { upsert: true }
-      );
-      return true;
-    } catch (e) {
-      console.error('[ERROR] Failed to save friends:', e.message);
-      return false;
-    }
+      const files = fs.readdirSync(USERS_DIR).filter(f => f.endsWith('.json'));
+      return files.map(f => readJSON(path.join(USERS_DIR, f), null)).filter(Boolean);
+    } catch (e) {}
   }
-  friendsData[username] = list;
+  return Object.values(memUsers);
+}
+
+/* ============ 好友操作 ============ */
+function getFriends(username) {
+  if (DATA_DIR) {
+    const f = readJSON(friendsFile(username), null);
+    if (f) return f;
+  }
+  return memFriends[username] || [];
+}
+
+function saveFriends(username, list) {
+  memFriends[username] = list;
+  if (DATA_DIR) writeJSON(friendsFile(username), list);
   return true;
 }
 
-async function addFriend(a, b) {
-  const fa = await getFriends(a);
-  const fb = await getFriends(b);
-  
-  if (!fa.includes(b)) {
-    fa.push(b);
-    await saveFriends(a, fa);
-  }
-  if (!fb.includes(a)) {
-    fb.push(a);
-    await saveFriends(b, fb);
-  }
+function addFriend(a, b) {
+  const fa = getFriends(a);
+  const fb = getFriends(b);
+  if (!fa.includes(b)) { fa.push(b); saveFriends(a, fa); }
+  if (!fb.includes(a)) { fb.push(a); saveFriends(b, fb); }
 }
 
-async function getMsgs(a, b) {
-  if (db) {
-    const msgs = await db.collection('messages').find({
-      $or: [
-        { from: a, to: b },
-        { from: b, to: a }
-      ]
-    }).sort({ time: 1 }).toArray();
-    return msgs;
+/* ============ 消息操作 ============ */
+function getMsgs(a, b) {
+  if (DATA_DIR) {
+    const m = readJSON(msgFile(a, b), null);
+    if (m) return m;
   }
   const key = [a, b].sort().join('__');
-  return messagesData[key] || [];
+  return memMsgs[key] || [];
 }
 
-async function addMsg(from, to, content) {
+function addMsg(from, to, content) {
   const msg = { from, to, content, time: Date.now() };
   
-  if (db) {
-    try {
-      await db.collection('messages').insertOne(msg);
-    } catch (e) {
-      console.error('[ERROR] Failed to save message:', e.message);
-    }
-  } else {
-    const key = [from, to].sort().join('__');
-    if (!messagesData[key]) messagesData[key] = [];
-    messagesData[key].push(msg);
+  /* 同时写入内存和文件 */
+  const key = [from, to].sort().join('__');
+  if (!memMsgs[key]) memMsgs[key] = [];
+  memMsgs[key].push(msg);
+  
+  if (DATA_DIR) {
+    const file = msgFile(from, to);
+    const existing = readJSON(file, []);
+    existing.push(msg);
+    const result = writeJSON(file, existing);
+    console.log('[DEBUG] Message saved to file:', result, 'file:', file, 'total msgs:', existing.length);
   }
   
   return msg;
 }
 
+/* ============ 默认数据 ============ */
 const DEFAULT_USERS = [
   { username: 'admin', password: 'admin123', nickname: '无聊官方', avatar: 1, bio: '无聊官方公众号 · 发布最新公告和使用指南', createdAt: Date.now() },
   { username: 'alice', password: '1234', nickname: 'Alice', avatar: 2, bio: 'hello', createdAt: Date.now() },
@@ -167,21 +145,23 @@ const DEFAULT_USERS = [
   { username: 'charlie', password: '1234', nickname: 'Charlie', avatar: 5, bio: 'hey', createdAt: Date.now() }
 ];
 
-async function initDefaultData() {
-  const all = await getAllUsers();
+function initDefaultData() {
+  const all = getAllUsers();
   if (all.length > 0) {
-    console.log('[INFO] Users already exist, skipping initialization');
+    console.log('[INFO] Users exist:', all.length);
     return;
   }
   console.log('[INFO] Initializing default users');
-  for (const u of DEFAULT_USERS) {
-    await saveUser(u);
-    await saveFriends(u.username, []);
-  }
-  await addFriend('alice', 'bob');
+  DEFAULT_USERS.forEach(u => {
+    saveUser(u);
+    saveFriends(u.username, []);
+  });
+  addFriend('alice', 'bob');
   console.log('[INFO] Default data initialized');
 }
+initDefaultData();
 
+/* ============ HTTP 工具 ============ */
 function readBody(req) {
   return new Promise((resolve) => {
     let data = '';
@@ -194,114 +174,153 @@ function readBody(req) {
 }
 
 function send(res, code, obj) {
+  const body = JSON.stringify(obj);
   res.writeHead(code, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type'
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Content-Length': Buffer.byteLength(body)
   });
-  res.end(JSON.stringify(obj));
+  res.end(body);
 }
 
-async function createServer() {
-  const server = http.createServer(async (req, res) => {
-    if (req.method === 'OPTIONS') return send(res, 200, { ok: true });
+/* ============ 路由 ============ */
+const server = http.createServer(async (req, res) => {
+  if (req.method === 'OPTIONS') return send(res, 200, { ok: true });
 
-    const url = req.url;
+  const url = req.url.split('?')[0];
+  console.log('[REQ]', req.method, url);
 
-    if (req.method === 'POST' && url === '/api/register') {
-      const body = await readBody(req);
-      const { username, password, nickname, avatar } = body;
-      if (!username || !password || !nickname) return send(res, 200, { success: false, msg: '请填写完整信息' });
-      if (username.length < 3) return send(res, 200, { success: false, msg: '无聊号至少3个字符' });
-      if (password.length < 4) return send(res, 200, { success: false, msg: '密码至少4位' });
-      if (await getUser(username)) return send(res, 200, { success: false, msg: '该无聊号已被注册' });
-      const user = { username, password, nickname, avatar: avatar || 1, bio: '', createdAt: Date.now() };
-      await saveUser(user);
-      await saveFriends(username, []);
-      return send(res, 200, { success: true, user });
+  /* ====== 健康检查 ====== */
+  if (req.method === 'GET' && (url === '/' || url === '/api' || url === '/api/health')) {
+    return send(res, 200, {
+      ok: true,
+      service: 'wuliao-chat',
+      version: '2.0',
+      dataDir: DATA_DIR,
+      userCount: getAllUsers().length
+    });
+  }
+
+  /* ====== 注册 ====== */
+  if (req.method === 'POST' && url === '/api/register') {
+    const body = await readBody(req);
+    const { username, password, nickname, avatar } = body;
+    if (!username || !password || !nickname) return send(res, 200, { success: false, msg: '请填写完整信息' });
+    if (username.length < 3) return send(res, 200, { success: false, msg: '无聊号至少3个字符' });
+    if (password.length < 4) return send(res, 200, { success: false, msg: '密码至少4位' });
+    if (getUser(username)) return send(res, 200, { success: false, msg: '该无聊号已被注册' });
+    const user = { username, password, nickname, avatar: avatar || 1, bio: '', createdAt: Date.now() };
+    saveUser(user);
+    saveFriends(username, []);
+    console.log('[OK] Registered:', username);
+    return send(res, 200, { success: true, user });
+  }
+
+  /* ====== 登录 ====== */
+  if (req.method === 'POST' && url === '/api/login') {
+    const body = await readBody(req);
+    const { username, password } = body;
+    const user = getUser(username);
+    if (!user || user.password !== password) return send(res, 200, { success: false, msg: '无聊号或密码错误' });
+    console.log('[OK] Login:', username);
+    return send(res, 200, { success: true, user });
+  }
+
+  /* ====== 添加好友 ====== */
+  if (req.method === 'POST' && url === '/api/add-friend') {
+    const body = await readBody(req);
+    const { from, to } = body;
+    if (from === to) return send(res, 200, { success: false, msg: '不能添加自己为好友' });
+    const target = getUser(to);
+    if (!target) return send(res, 200, { success: false, msg: '用户不存在' });
+    const friendsList = getFriends(from);
+    if (friendsList.includes(to)) return send(res, 200, { success: false, msg: '你们已经是好友了' });
+    addFriend(from, to);
+    console.log('[OK] Friend added:', from, '->', to);
+    return send(res, 200, { success: true, target });
+  }
+
+  /* ====== 获取用户信息 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/user/')) {
+    const username = decodeURIComponent(url.slice(10));
+    const user = getUser(username);
+    if (!user) return send(res, 200, { success: false, msg: '用户不存在' });
+    return send(res, 200, { success: true, user });
+  }
+
+  /* ====== 获取好友列表 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/friends/')) {
+    const username = decodeURIComponent(url.slice(13));
+    const friendNames = getFriends(username);
+    const friends = friendNames.map(name => getUser(name)).filter(Boolean);
+    return send(res, 200, { success: true, friends });
+  }
+
+  /* ====== 获取消息 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/messages/')) {
+    const parts = url.slice(14).split('/');
+    if (parts.length >= 2) {
+      const a = decodeURIComponent(parts[0]);
+      const b = decodeURIComponent(parts[1]);
+      const msgs = getMsgs(a, b);
+      console.log('[OK] GetMsgs:', a, '<->', b, 'count:', msgs.length);
+      return send(res, 200, { success: true, messages: msgs });
     }
+    return send(res, 200, { success: true, messages: [] });
+  }
 
-    if (req.method === 'POST' && url === '/api/login') {
-      const body = await readBody(req);
-      const { username, password } = body;
-      const user = await getUser(username);
-      if (!user || user.password !== password) return send(res, 200, { success: false, msg: '无聊号或密码错误' });
-      return send(res, 200, { success: true, user });
+  /* ====== 发送消息 ====== */
+  if (req.method === 'POST' && url === '/api/messages/send') {
+    const body = await readBody(req);
+    const { from, to, content } = body;
+    console.log('[MSG] Send request:', { from, to, content: content?.substring(0, 20) });
+    
+    if (!from || !to || !content) return send(res, 200, { success: false, msg: '参数错误' });
+    
+    const fromUser = getUser(from);
+    const toUser = getUser(to);
+    if (!fromUser) return send(res, 200, { success: false, msg: '发送者不存在' });
+    if (!toUser) return send(res, 200, { success: false, msg: '接收者不存在' });
+    
+    const friendsList = getFriends(from);
+    if (!friendsList.includes(to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
+    
+    const msg = addMsg(from, to, content);
+    console.log('[OK] Message saved:', msg.from, '->', msg.to, 'time:', msg.time);
+    
+    /* 验证消息确实保存了 */
+    const verify = getMsgs(from, to);
+    console.log('[VERIFY] Total messages now:', verify.length);
+    
+    return send(res, 200, { success: true, message: msg, totalMessages: verify.length });
+  }
+
+  /* ====== 调试端点 ====== */
+  if (req.method === 'GET' && url === '/api/debug') {
+    let msgFiles = [];
+    if (DATA_DIR && MSG_DIR) {
+      try { msgFiles = fs.readdirSync(MSG_DIR).filter(f => f.endsWith('.json')); } catch (e) {}
     }
+    return send(res, 200, {
+      version: '2.0',
+      dataDir: DATA_DIR,
+      users: getAllUsers().map(u => u.username),
+      msgFiles: msgFiles,
+      memMsgsKeys: Object.keys(memMsgs)
+    });
+  }
 
-    if (req.method === 'POST' && url === '/api/add-friend') {
-      const body = await readBody(req);
-      const { from, to } = body;
-      if (from === to) return send(res, 200, { success: false, msg: '不能添加自己为好友' });
-      const target = await getUser(to);
-      if (!target) return send(res, 200, { success: false, msg: '用户不存在' });
-      const friendsList = await getFriends(from);
-      if (friendsList.includes(to)) return send(res, 200, { success: false, msg: '你们已经是好友了' });
-      await addFriend(from, to);
-      return send(res, 200, { success: true, target });
-    }
+  send(res, 404, { error: 'Not found', url: url });
+});
 
-    if (req.method === 'GET' && url.startsWith('/api/user/')) {
-      const username = decodeURIComponent(url.slice(10));
-      const user = await getUser(username);
-      if (!user) return send(res, 200, { success: false, msg: '用户不存在' });
-      return send(res, 200, { success: true, user });
-    }
-
-    if (req.method === 'GET' && url.startsWith('/api/friends/')) {
-      const username = decodeURIComponent(url.slice(13));
-      const friendNames = await getFriends(username);
-      const list = await Promise.all(friendNames.map(async name => await getUser(name)));
-      return send(res, 200, { success: true, friends: list.filter(Boolean) });
-    }
-
-    if (req.method === 'GET' && url.startsWith('/api/messages/')) {
-      const parts = url.slice(14).split('/');
-      if (parts.length >= 2) {
-        const a = decodeURIComponent(parts[0]);
-        const b = decodeURIComponent(parts[1]);
-        const msgs = await getMsgs(a, b);
-        return send(res, 200, { success: true, messages: msgs });
-      }
-      return send(res, 200, { success: true, messages: [] });
-    }
-
-    if (req.method === 'POST' && url === '/api/messages/send') {
-      const body = await readBody(req);
-      const { from, to, content } = body;
-      if (!from || !to || !content) return send(res, 200, { success: false, msg: '参数错误' });
-      if (!await getUser(from) || !await getUser(to)) return send(res, 200, { success: false, msg: '用户不存在' });
-      const friendsList = await getFriends(from);
-      if (!friendsList.includes(to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
-      const msg = await addMsg(from, to, content);
-      return send(res, 200, { success: true, message: msg });
-    }
-
-    if (req.method === 'GET' && url === '/api/debug') {
-      return send(res, 200, {
-        mongoConnected: !!db,
-        storage: db ? 'mongodb' : 'memory'
-      });
-    }
-
-    send(res, 404, { error: 'Not found' });
-  });
-
-  const PORT = process.env.PORT || 3000;
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log('[INFO] Server running on port ' + PORT);
-    console.log('[INFO] Storage:', db ? 'MongoDB' : 'Memory');
-  });
-}
-
-async function main() {
-  await connectMongo();
-  await initDefaultData();
-  await createServer();
-}
-
-main().catch(e => {
-  console.error('[ERROR] Main error:', e.message);
-  process.exit(1);
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, '0.0.0.0', () => {
+  console.log('========================================');
+  console.log('[INFO] 无聊聊天服务已启动');
+  console.log('[INFO] 端口:', PORT);
+  console.log('[INFO] 数据目录:', DATA_DIR || '仅内存');
+  console.log('[INFO] 用户数:', getAllUsers().length);
+  console.log('========================================');
 });
