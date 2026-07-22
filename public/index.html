@@ -2625,6 +2625,33 @@ let postHideFrom=[];
 let isLongPress=false;
 let longPressTimer=null;
 
+function compressImage(dataUrl,maxKB){
+  return new Promise((resolve)=>{
+    const img=new Image();
+    img.onload=()=>{
+      let canvas=document.createElement('canvas');
+      let w=img.width,h=img.height;
+      const maxDim=1280;
+      if(w>maxDim||h>maxDim){
+        if(w>h){h=Math.round(h*maxDim/w);w=maxDim;}
+        else{w=Math.round(w*maxDim/h);h=maxDim;}
+      }
+      canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+      let quality=0.8;
+      let result=canvas.toDataURL('image/jpeg',quality);
+      while(result.length/1024>maxKB&&quality>0.1){
+        quality-=0.1;
+        result=canvas.toDataURL('image/jpeg',quality);
+      }
+      resolve(result);
+    };
+    img.onerror=()=>resolve(dataUrl);
+    img.src=dataUrl;
+  });
+}
+
 function openMoments(){
   $('moments-view').classList.add('show');
   renderMoments();
@@ -2884,8 +2911,10 @@ $('post-image-input').addEventListener('change',function(e){
     if(postImages.length>=9) return;
     const reader=new FileReader();
     reader.onload=function(ev){
-      postImages.push(ev.target.result);
-      renderPostImages();
+      compressImage(ev.target.result,500).then(compressed=>{
+        postImages.push(compressed);
+        renderPostImages();
+      });
     };
     reader.readAsDataURL(file);
   });
@@ -3281,11 +3310,16 @@ function closeScanner(){
 function stopCamera(){
   if(scannerRAF) cancelAnimationFrame(scannerRAF);
   scannerRAF=null;
+  scannerLocked=false;
+  const video=$('scanner-video');
+  if(video){
+    video.pause();
+    video.srcObject=null;
+  }
   if(scannerStream){
     scannerStream.getTracks().forEach(t=>t.stop());
     scannerStream=null;
   }
-  scannerLocked=false;
 }
 async function startCamera(){
   try{
