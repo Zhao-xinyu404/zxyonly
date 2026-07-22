@@ -224,6 +224,7 @@ let memMoments = [];
 let memMomentLikes = {};
 let memMomentComments = {};
 let memFeatureFlags = { scanEnabled: true };
+let memReadMarkers = {};
 
 /* ============ 文件工具 ============ */
 function userFile(u) { return path.join(USERS_DIR, u + '.json'); }
@@ -235,6 +236,7 @@ function outgoingReqFile(u) { return path.join(REQ_DIR, u + '_out.json'); }
 function momentsFile() { return path.join(MOMENTS_DIR, 'all.json'); }
 function momentLikesFile(id) { return path.join(MOMENT_LIKES_DIR, id + '.json'); }
 function momentCommentsFile(id) { return path.join(MOMENT_COMMENTS_DIR, id + '.json'); }
+function readMarkersFile(username) { return path.join(MSG_DIR, 'read_' + username + '.json'); }
 
 function readJSON(file, def) {
   if (!file || !DATA_DIR) return def;
@@ -444,6 +446,50 @@ function addMsg(from, to, content) {
   if (supabaseEnabled()) supabaseUpsert(key, 'messages', memMsgs[key]).catch(e => console.error('[Supabase] addMsg failed:', e.message));
 
   return msg;
+}
+
+/* ============ 已读标记 ============ */
+function getReadMarkers(username) {
+  if (DATA_DIR) {
+    const m = readJSON(readMarkersFile(username), null);
+    if (m) return m;
+  }
+  return memReadMarkers[username] || {};
+}
+
+function saveReadMarkers(username, markers) {
+  memReadMarkers[username] = markers;
+  if (DATA_DIR) writeJSON(readMarkersFile(username), markers);
+}
+
+function markConversationRead(username, withUser) {
+  const markers = getReadMarkers(username);
+  const msgs = getMsgs(username, withUser);
+  const lastMsg = msgs[msgs.length - 1];
+  markers[withUser] = lastMsg ? lastMsg.time : Date.now();
+  saveReadMarkers(username, markers);
+  return markers[withUser];
+}
+
+function countUnread(username, withUser) {
+  const markers = getReadMarkers(username);
+  const lastRead = markers[withUser] || 0;
+  const msgs = getMsgs(username, withUser);
+  let count = 0;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (msgs[i].time > lastRead && msgs[i].from === withUser) count++;
+    else if (msgs[i].time <= lastRead) break;
+  }
+  return count;
+}
+
+function getTotalUnread(username) {
+  const friends = getFriends(username);
+  let total = 0;
+  friends.forEach(f => {
+    total += countUnread(username, f);
+  });
+  return total;
 }
 
 /* ============ 朋友圈 ============ */
@@ -837,6 +883,23 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { success: true });
   }
 
+  /* ====== 获取未读消息数 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/messages/unread/')) {
+    const parts = url.slice(21).split('/');
+    if (parts.length >= 1) {
+      const username = decodeURIComponent(parts[0]);
+      const total = getTotalUnread(username);
+      const perConversation = {};
+      const friends = getFriends(username);
+      friends.forEach(f => {
+        const c = countUnread(username, f);
+        if (c > 0) perConversation[f] = c;
+      });
+      return send(res, 200, { success: true, total, perConversation });
+    }
+    return send(res, 200, { success: true, total: 0, perConversation: {} });
+  }
+
   /* ====== 获取消息 ====== */
   if (req.method === 'GET' && url.startsWith('/api/messages/')) {
     const parts = url.slice(14).split('/');
@@ -858,6 +921,15 @@ const server = http.createServer(async (req, res) => {
     if (!areFriends(from, to)) return send(res, 200, { success: false, msg: '对方不是你的好友' });
     const msg = addMsg(from, to, content);
     return send(res, 200, { success: true, message: msg });
+  }
+
+  /* ====== 标记消息已读 ====== */
+  if (req.method === 'POST' && url === '/api/messages/read') {
+    const body = await readBody(req);
+    const { username, withUser } = body;
+    if (!username || !withUser) return send(res, 200, { success: false, msg: '参数错误' });
+    const time = markConversationRead(username, withUser);
+    return send(res, 200, { success: true, readTime: time });
   }
 
   /* ====== 发布朋友圈 ====== */

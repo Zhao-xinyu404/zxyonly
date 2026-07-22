@@ -872,6 +872,41 @@
   }
   .toast.show{opacity:1;}
 
+  /* 新消息弹窗 */
+  .msg-popup{
+    position:absolute;
+    top:44px;left:12px;right:12px;
+    background:#fff;
+    border-radius:12px;
+    padding:10px 12px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    box-shadow:0 4px 20px rgba(0,0,0,0.15);
+    z-index:150;
+    transform:translateY(-120%);
+    transition:transform .3s cubic-bezier(.2,.8,.2,1);
+    cursor:pointer;
+  }
+  .msg-popup.show{transform:translateY(0);}
+  .msg-popup .mp-avatar{
+    width:40px;height:40px;border-radius:8px;
+    flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:16px;font-weight:600;
+    overflow:hidden;
+  }
+  .msg-popup .mp-avatar img{width:100%;height:100%;object-fit:cover;border-radius:8px;}
+  .msg-popup .mp-body{flex:1;min-width:0;}
+  .msg-popup .mp-name{
+    font-size:14px;font-weight:600;color:var(--text);
+    margin-bottom:2px;
+  }
+  .msg-popup .mp-content{
+    font-size:13px;color:var(--text-2);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+
   /* 预设头像颜色 */
   .av-1{background:linear-gradient(135deg,#07c160,#34d27f);}
   .av-2{background:linear-gradient(135deg,#3b82f6,#60a5fa);}
@@ -1809,8 +1844,9 @@
 
     <!-- 底部 Tab Bar -->
     <div class="tab-bar">
-      <div class="tab active" data-tab="chat">
+      <div class="tab active" data-tab="chat" style="position:relative;">
         <i class="fas fa-comments"></i><span>无聊</span>
+        <span class="badge" id="tab-chat-badge" style="display:none;position:absolute;top:2px;right:calc(50% - 30px);min-width:16px;height:16px;line-height:16px;padding:0 4px;font-size:10px;">0</span>
       </div>
       <div class="tab" data-tab="contacts" style="position:relative;">
         <i class="fas fa-address-book"></i><span>通讯录</span>
@@ -2019,6 +2055,15 @@
     <div class="admin-content" id="admin-content"></div>
   </div>
 
+  <!-- 新消息弹窗 -->
+  <div class="msg-popup" id="msg-popup" onclick="closeMsgPopup()">
+    <div class="mp-avatar" id="msg-popup-avatar"></div>
+    <div class="mp-body">
+      <div class="mp-name" id="msg-popup-name"></div>
+      <div class="mp-content" id="msg-popup-content"></div>
+    </div>
+  </div>
+
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
@@ -2095,8 +2140,110 @@ let currentUser=null;
 let currentChatTarget=null;
 let socket=null;
 let unreadMap={};  // 未读消息计数（内存）
+let lastNotifiedMsgTime=0;  // 上次通知的最后一条消息时间戳，避免重复弹窗
+let audioCtx=null;
 
-/* ============ 认证 ============ */
+/* ============ 消息提示音 ============ */
+function playMessageSound(){
+  try{
+    if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+    const osc=audioCtx.createOscillator();
+    const gain=audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.type='sine';
+    osc.frequency.setValueAtTime(880,audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(660,audioCtx.currentTime+0.1);
+    gain.gain.setValueAtTime(0,audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.3,audioCtx.currentTime+0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+0.3);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime+0.3);
+  }catch(e){}
+}
+
+/* ============ 新消息弹窗通知 ============ */
+let msgPopupTimer=null;
+function showMessagePopup(fromUser,content){
+  const popup=$('msg-popup');
+  if(!popup) return;
+  $('msg-popup-avatar').innerHTML=userAvatarHTML(fromUser,fromUser?.nickname);
+  $('msg-popup-name').textContent=fromUser?.nickname||'新消息';
+  $('msg-popup-content').textContent=content;
+  popup.classList.add('show');
+  if(msgPopupTimer) clearTimeout(msgPopupTimer);
+  msgPopupTimer=setTimeout(()=>popup.classList.remove('show'),3000);
+}
+function closeMsgPopup(){
+  const popup=$('msg-popup');
+  if(popup) popup.classList.remove('show');
+  if(msgPopupTimer){clearTimeout(msgPopupTimer);msgPopupTimer=null;}
+}
+
+/* ============ 获取未读消息并更新UI ============ */
+async function fetchUnreadAndNotify(){
+  if(!currentUser) return;
+  const r=await api(`/api/messages/unread/${currentUser.username}`,'','GET');
+  if(!r.success) return;
+  const prevTotal=Object.values(unreadMap).reduce((a,b)=>a+b,0);
+  unreadMap={...r.perConversation};
+  const total=r.total;
+  
+  const tabBadge=$('tab-chat-badge');
+  if(tabBadge){
+    if(total>0){
+      tabBadge.style.display='inline-block';
+      tabBadge.textContent=total>99?'99+':total;
+    }else{
+      tabBadge.style.display='none';
+    }
+  }
+  
+  if(total>prevTotal){
+    playMessageSound();
+    
+    let newestFriend=null;
+    let newestMsg=null;
+    const friends=Object.keys(r.perConversation);
+    for(const f of friends){
+      const mr=await api(`/api/messages/${currentUser.username}/${f}`,'','GET');
+      if(mr.success&&mr.messages.length>0){
+        const last=mr.messages[mr.messages.length-1];
+        if(last.from===f&&last.time>lastNotifiedMsgTime){
+          if(!newestMsg||last.time>newestMsg.time){
+            newestFriend=f;
+            newestMsg=last;
+          }
+        }
+      }
+    }
+    if(newestMsg&&newestMsg.time>lastNotifiedMsgTime){
+      lastNotifiedMsgTime=newestMsg.time;
+      if(currentChatTarget!==newestFriend){
+        const ur=await api(`/api/user/${newestFriend}`,'','GET');
+        showMessagePopup(ur.success?ur.user:null,newestMsg.content);
+      }
+    }
+  }
+  
+  renderChatList();
+}
+
+function updateChatTabBadge(){
+  const total=Object.values(unreadMap).reduce((a,b)=>a+b,0);
+  const tabBadge=$('tab-chat-badge');
+  if(tabBadge){
+    if(total>0){
+      tabBadge.style.display='inline-block';
+      tabBadge.textContent=total>99?'99+':total;
+    }else{
+      tabBadge.style.display='none';
+    }
+  }
+}
+
+/* ============ 格式化聊天时间 ============ */
 async function refreshAuth(){
   const u=localStorage.getItem('wuliao_session');
   if(u){
@@ -2208,6 +2355,7 @@ function enterMain(){
   startPolling();
   renderAll();
   updateFeatureVisibility();
+  fetchUnreadAndNotify();
 }
 
 /* ============ 轮询获取新消息 ============ */
@@ -2225,6 +2373,7 @@ function startPolling(){
         if(res.success) renderChatList();
       });
       updateNewFriendBadge();
+      fetchUnreadAndNotify();
     }
   },3000);
 }
@@ -3217,8 +3366,10 @@ async function openChat(friendUsername){
   $('chat-input').value='';
   autoResize($('chat-input'));
   delete unreadMap[friendUsername];
+  api('/api/messages/read',{username:currentUser.username,withUser:friendUsername},'POST');
   renderChatMessages(true);
   renderChatList(true);
+  updateChatTabBadge();
 }
 $('chat-back').onclick=()=>{
   $('chat-detail-view').classList.remove('show');
@@ -3238,6 +3389,13 @@ async function renderChatMessages(force=false){
   const newHash=msgs.length+'_'+ (msgs[msgs.length-1]?.time||0);
   if(!force && newHash===lastChatMsgsHash) return;
   lastChatMsgsHash=newHash;
+  
+  const hasNewFromOther=msgs.length>0&&msgs[msgs.length-1].from===currentChatTarget;
+  if(hasNewFromOther){
+    delete unreadMap[currentChatTarget];
+    api('/api/messages/read',{username:currentUser.username,withUser:currentChatTarget},'POST');
+    updateChatTabBadge();
+  }
   
   const box=$('chat-messages');
   let html='';
