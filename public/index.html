@@ -799,43 +799,6 @@
     width:100%;padding:10px;background:var(--brand);color:#fff;
     border:none;border-radius:6px;font-size:14px;cursor:pointer;
   }
-  .oa-chat-section{
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    background:var(--bg);
-    min-height:0;
-  }
-  .oa-chat-messages{
-    flex:1;
-    overflow-y:auto;
-    padding:14px 12px 20px;
-    display:flex;
-    flex-direction:column;
-    gap:14px;
-  }
-  .oa-chat-messages .msg{
-    max-width:75%;
-    padding:10px 12px;
-    border-radius:8px;
-    font-size:15px;
-    line-height:1.5;
-    word-break:break-word;
-  }
-  .oa-chat-messages .msg.other{
-    align-self:flex-start;
-    background:#fff;
-    border-top-left-radius:2px;
-  }
-  .oa-chat-messages .msg.self{
-    align-self:flex-end;
-    background:var(--bubble-self);
-    border-top-right-radius:2px;
-  }
-  .oa-chat-messages .msg-time{
-    text-align:center;font-size:11px;color:var(--text-2);
-    padding:4px 0;
-  }
   .chat-detail-header{
     flex-shrink:0;
     background:#ededed;
@@ -2247,13 +2210,6 @@
       <button class="icon-btn"><i class="fas fa-ellipsis"></i></button>
     </div>
     <div class="oa-content" id="oa-content"></div>
-    <div class="oa-chat-section" id="oa-chat-section" style="display:none;">
-      <div class="oa-chat-messages" id="oa-chat-messages"></div>
-      <div class="chat-input-bar">
-        <textarea id="oa-chat-input" rows="1" placeholder="给公众号发消息..."></textarea>
-        <button class="send-btn" id="oa-btn-send">发送</button>
-      </div>
-    </div>
   </div>
 
   <!-- ============ 新的朋友页 ============ -->
@@ -3178,27 +3134,11 @@ let oaArticlesCache=[];
 async function openOfficialAccount(){
   $('official-account-view').classList.add('show');
   await renderOfficialAccount();
-  renderOAChatMessages();
-  startOAPolling();
 }
 $('official-account-card').onclick=openOfficialAccount;
 $('oa-back').onclick=()=>{
   $('official-account-view').classList.remove('show');
-  stopOAPolling();
 };
-
-let oaPollTimer=null;
-function startOAPolling(){
-  stopOAPolling();
-  oaPollTimer=setInterval(()=>{
-    if(currentUser&&$('official-account-view').classList.contains('show')){
-      renderOAChatMessages();
-    }
-  },3000);
-}
-function stopOAPolling(){
-  if(oaPollTimer){clearInterval(oaPollTimer);oaPollTimer=null;}
-}
 
 async function renderOfficialAccount(){
   if(!currentUser) return;
@@ -3258,8 +3198,6 @@ async function renderOfficialAccount(){
   ${publishBar}
   <div class="oa-articles">${articlesHtml||'<div class="search-empty" style="padding:40px 0;"><p>暂无文章</p></div>'}</div>`;
 
-  $('oa-chat-section').style.display='flex';
-
   const btn=$('oa-follow-btn');
   if(btn&&!isFriend){
     btn.onclick=async()=>{
@@ -3310,63 +3248,6 @@ function openOAPublish(){
     }
   });
 }
-
-let lastOAMsgsHash='';
-async function renderOAChatMessages(){
-  if(!currentUser) return;
-  const r=await api(`/api/messages/${currentUser.username}/${OFFICIAL_ACCOUNT}`,'','GET');
-  const msgs=r.success?r.messages:[];
-  const newHash=msgs.length+'_'+(msgs[msgs.length-1]?.time||0);
-  if(newHash===lastOAMsgsHash) return;
-  lastOAMsgsHash=newHash;
-
-  const box=$('oa-chat-messages');
-  if(!box) return;
-  let html='';
-  let lastDate=null;
-  msgs.forEach(m=>{
-    const d=new Date(m.time);
-    const dateKey=d.toDateString();
-    if(dateKey!==lastDate){
-      html+=`<div class="msg-time">${formatChatTime(m.time)}</div>`;
-      lastDate=dateKey;
-    }
-    const isSelf=m.from===currentUser.username;
-    html+=`<div class="msg ${isSelf?'self':'other'}">${escapeHTML(m.content)}</div>`;
-  });
-  box.innerHTML=html||'<div class="msg-time">暂无消息，给公众号发条消息吧</div>';
-  box.scrollTop=box.scrollHeight;
-
-  if(msgs.length>0&&msgs[msgs.length-1].from===OFFICIAL_ACCOUNT){
-    delete unreadMap[OFFICIAL_ACCOUNT];
-    api('/api/messages/read',{username:currentUser.username,withUser:OFFICIAL_ACCOUNT},'POST');
-    updateChatTabBadge();
-  }
-}
-
-function sendOAMessage(){
-  if(!currentUser) return;
-  const input=$('oa-chat-input');
-  const text=input.value.trim();
-  if(!text) return;
-  api('/api/messages/send',{from:currentUser.username,to:OFFICIAL_ACCOUNT,content:text},'POST').then(res=>{
-    if(res.success){
-      input.value='';
-      input.style.height='auto';
-      renderOAChatMessages();
-    }else{
-      toast(res.msg||'发送失败');
-    }
-  });
-}
-$('oa-btn-send').onclick=sendOAMessage;
-$('oa-chat-input').addEventListener('input',function(){autoResize(this);});
-$('oa-chat-input').addEventListener('keydown',function(e){
-  if(e.key==='Enter'&&!e.shiftKey){
-    e.preventDefault();
-    sendOAMessage();
-  }
-});
 
 /* ============ 新的朋友 ============ */
 function openNewFriends(){
@@ -4779,7 +4660,7 @@ function closeCurrentView(){
   for(const v of views){
     const el=$(v.id);
     if(el&&el.classList.contains('show')){
-      if(v.id==='official-account-view') stopOAPolling();
+
       if(v.id==='scanner-view'){scannerActive=false;stopCamera();}
       el.classList.remove('show');
       el.style.transform='';
