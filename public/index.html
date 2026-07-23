@@ -240,6 +240,20 @@
     transition:background .2s;
   }
   .nav-header .icon-btn:hover{background:rgba(0,0,0,0.05);}
+  .nav-header-right{
+    display:flex;align-items:center;gap:8px;
+  }
+  .connection-indicator{
+    width:12px;height:12px;
+    border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:8px;
+    transition:all .3s;
+    cursor:help;
+  }
+  .connection-indicator.online{color:#07c160;}
+  .connection-indicator.warning{color:#f59e0b;}
+  .connection-indicator.offline{color:#ef4444;}
 
   /* 加号下拉菜单 */
   .plus-dropdown{
@@ -2021,7 +2035,10 @@
     <div class="nav-header">
       <button class="icon-btn" id="header-left"><i class="fas fa-plus"></i></button>
       <h2 id="nav-title">无聊</h2>
-      <button class="icon-btn" id="header-right"><i class="fas fa-search"></i></button>
+      <div class="nav-header-right">
+        <span id="connection-indicator" class="connection-indicator offline" title="后端离线"></span>
+        <button class="icon-btn" id="header-right"><i class="fas fa-search"></i></button>
+      </div>
       <!-- 加号下拉菜单 -->
       <div class="plus-dropdown" id="plus-dropdown">
         <div class="plus-dropdown-item" onclick="openAddFriend();closePlusDropdown();">
@@ -2527,6 +2544,70 @@ async function api(url, data, method='POST', timeoutMs=10000){
   }
 }
 
+/* ============ 连接状态检测 ============ */
+let connectionStatus = {
+  serverOnline: false,
+  supabaseOnline: false,
+  supabaseLatency: null,
+  lastCheck: 0
+};
+let statusCheckTimer = null;
+
+async function checkConnectionStatus(){
+  try{
+    const startTime = Date.now();
+    const res = await api('/api/health', '', 'GET', 5000);
+    const latency = Date.now() - startTime;
+    
+    connectionStatus.serverOnline = res.ok === true;
+    connectionStatus.supabaseOnline = res.supabase?.connected === true;
+    connectionStatus.supabaseLatency = res.supabase?.latency;
+    connectionStatus.lastCheck = Date.now();
+    
+    updateConnectionIndicator();
+    return res;
+  }catch(e){
+    connectionStatus.serverOnline = false;
+    connectionStatus.supabaseOnline = false;
+    connectionStatus.lastCheck = Date.now();
+    updateConnectionIndicator();
+    return { ok: false, error: e.message };
+  }
+}
+
+function updateConnectionIndicator(){
+  const indicator = $('connection-indicator');
+  if(!indicator) return;
+  
+  if(connectionStatus.serverOnline){
+    indicator.className = 'connection-indicator online';
+    indicator.innerHTML = '<i class="fas fa-check-circle"></i>';
+    indicator.title = '后端在线';
+    if(!connectionStatus.supabaseOnline){
+      indicator.className = 'connection-indicator warning';
+      indicator.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+      indicator.title = '后端在线，数据库离线';
+    }
+  }else{
+    indicator.className = 'connection-indicator offline';
+    indicator.innerHTML = '<i class="fas fa-times-circle"></i>';
+    indicator.title = '后端离线';
+  }
+}
+
+function startStatusChecking(){
+  if(statusCheckTimer) clearInterval(statusCheckTimer);
+  checkConnectionStatus();
+  statusCheckTimer = setInterval(checkConnectionStatus, 30000);
+}
+
+function stopStatusChecking(){
+  if(statusCheckTimer){
+    clearInterval(statusCheckTimer);
+    statusCheckTimer = null;
+  }
+}
+
 /* ============ 头像渲染 ============ */
 const AV_ICONS={1:'cat',2:'dog',3:'fish',4:'dragon',5:'otter',6:'kiwi-bird',7:'horse',8:'paw'};
 const avatarColors={
@@ -2664,6 +2745,7 @@ async function refreshAuth(){
     if(r.success){
       currentUser=r.user;
       startPolling();
+      startStatusChecking();
       renderAll();
       updateFeatureVisibility();
       fetchUnreadAndNotify();
@@ -2775,6 +2857,7 @@ function enterMain(){
   $('chat-detail-view').classList.remove('show');
   switchTab('chat');
   startPolling();
+  startStatusChecking();
   renderAll();
   updateFeatureVisibility();
   fetchUnreadAndNotify();

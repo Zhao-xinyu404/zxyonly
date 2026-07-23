@@ -959,17 +959,40 @@ const server = http.createServer(async (req, res) => {
 
   /* ====== 健康检查 ====== */
   if (req.method === 'GET' && (url === '/api' || url === '/api/health')) {
-    return send(res, 200, {
+    const status = {
       ok: true,
       service: 'wuliao-chat',
       version: '3.1',
-      dataDir: DATA_DIR,
-      userCount: getAllUsers().length,
-      momentCount: getAllMoments().length,
-      supabaseEnabled: supabaseEnabled() ? true : false,
-      supabaseUrl: SUPABASE_URL ? 'configured' : 'not set',
-      supabaseKey: SUPABASE_KEY ? 'configured' : 'not set'
-    });
+      timestamp: Date.now(),
+      server: {
+        status: 'online',
+        port: PORT,
+        dataDir: DATA_DIR || '仅内存',
+        userCount: getAllUsers().length,
+        momentCount: getAllMoments().length,
+        groupCount: Object.keys(memGroups).length
+      },
+      supabase: {
+        enabled: supabaseEnabled(),
+        url: SUPABASE_URL ? 'configured' : 'not set',
+        key: SUPABASE_KEY ? 'configured' : 'not set',
+        connected: false,
+        latency: null,
+        error: null
+      }
+    };
+    if (supabaseEnabled()) {
+      const startTime = Date.now();
+      try {
+        await supabaseRequest('/wuliao_data', 'GET', null, { limit: 1 });
+        status.supabase.connected = true;
+        status.supabase.latency = Date.now() - startTime;
+      } catch (e) {
+        status.supabase.connected = false;
+        status.supabase.error = e.message;
+      }
+    }
+    return send(res, 200, status);
   }
 
   /* ====== 注册 ====== */
