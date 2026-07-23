@@ -764,6 +764,41 @@
   .oa-article .art-meta{
     font-size:11px;color:var(--text-3);margin-top:8px;
   }
+  .oa-article .art-content{
+    font-size:14px;color:var(--text);line-height:1.7;margin-top:10px;
+    white-space:pre-wrap;
+  }
+  .oa-article .oa-comments{
+    margin-top:12px;padding-top:12px;border-top:1px solid var(--line);
+  }
+  .oa-article .oa-comment{
+    font-size:13px;color:var(--text);line-height:1.5;padding:4px 0;
+  }
+  .oa-article .oa-comment .cmt-name{
+    color:#576b95;font-weight:500;
+  }
+  .oa-article .oa-comment .cmt-time{
+    font-size:11px;color:var(--text-3);margin-left:4px;
+  }
+  .oa-article .oa-comment-input{
+    display:flex;gap:8px;margin-top:8px;align-items:center;
+  }
+  .oa-article .oa-comment-input input{
+    flex:1;height:34px;border:1px solid var(--line);border-radius:4px;
+    padding:0 10px;font-size:13px;outline:none;background:#f9f9f9;
+  }
+  .oa-article .oa-comment-input button{
+    padding:0 12px;height:34px;background:var(--brand);color:#fff;
+    border:none;border-radius:4px;font-size:13px;cursor:pointer;
+  }
+  .oa-publish-bar{
+    background:#fff;padding:12px;border-bottom:1px solid var(--line);
+    text-align:center;
+  }
+  .oa-publish-bar button{
+    width:100%;padding:10px;background:var(--brand);color:#fff;
+    border:none;border-radius:6px;font-size:14px;cursor:pointer;
+  }
   .oa-chat-section{
     flex:1;
     display:flex;
@@ -2060,6 +2095,11 @@
           </div>
         </div>
         <div class="profile-menu">
+          <div class="list-row" id="download-app-entry">
+            <div class="avatar" style="background:transparent;"><i class="fas fa-mobile-screen" style="color:#3b82f6;"></i></div>
+            <div class="info"><div class="name">下载APP</div><div class="detail" style="font-size:12px;color:var(--text-2);">蓝奏云 密码:1234</div></div>
+            <i class="fas fa-chevron-right arrow"></i>
+          </div>
           <div class="list-row" id="settings-entry">
             <div class="avatar" style="background:transparent;"><i class="fas fa-gear" style="color:#888;"></i></div>
             <div class="info"><div class="name">设置</div></div>
@@ -2935,6 +2975,14 @@ function renderProfile(){
   const settingsEntry=$('settings-entry');
   if(settingsEntry) settingsEntry.onclick=openSettings;
 
+  // 下载APP入口
+  const downloadAppEntry=$('download-app-entry');
+  if(downloadAppEntry){
+    downloadAppEntry.onclick=()=>{
+      window.open('https://wwats.lanzouu.com/iKOmp3y5tmkj','_blank');
+    };
+  }
+
   // 加载个人摄像头设置
   loadUserSettings();
 }
@@ -3125,23 +3173,7 @@ document.addEventListener('click',async(e)=>{
 
 /* ============ 公众号 ============ */
 const OFFICIAL_ACCOUNT='admin';
-const OA_ARTICLES=[
-  {
-    title:'欢迎关注无聊官方公众号',
-    excerpt:'无聊是一款简洁的即时通讯应用，支持加好友、聊天等功能。在这里你可以查看最新公告和使用指南。',
-    time:Date.now()-86400000
-  },
-  {
-    title:'如何添加好友？',
-    excerpt:'点击通讯录 → 添加朋友 → 输入对方的无聊号即可添加好友。添加成功后，好友会出现在通讯录和聊天列表中，点击即可开始聊天。',
-    time:Date.now()-172800000
-  },
-  {
-    title:'无聊使用小贴士',
-    excerpt:'1. 在"我"页面可以设置个性签名\n2. 聊天列表按最近消息时间排序\n3. 支持多设备同时登录\n4. 消息实时同步，不用担心遗漏',
-    time:Date.now()-259200000
-  }
-];
+let oaArticlesCache=[];
 
 async function openOfficialAccount(){
   $('official-account-view').classList.add('show');
@@ -3175,15 +3207,45 @@ async function renderOfficialAccount(){
   const fr=await api(`/api/friends/${currentUser.username}`,'','GET');
   const friendUsernames=(fr.success?fr.friends:[]).map(f=>f.username);
   const isFriend=oa&&friendUsernames.includes(OFFICIAL_ACCOUNT);
+  const isAdmin=currentUser.username==='admin';
 
   $('oa-name').textContent=oa?oa.nickname:'无聊官方';
 
   const avatarBg='#07c160';
-  const articlesHtml=OA_ARTICLES.map(a=>{
-    return `<div class="oa-article">
+  const ar=await api('/api/oa/articles','','GET');
+  const articles=ar.success?ar.articles:[];
+  oaArticlesCache=articles;
+
+  // 并行加载每篇文章的评论
+  const commentsMap={};
+  await Promise.all(articles.map(async a=>{
+    const cr=await api(`/api/oa/comments/${a.id}`,'','GET');
+    commentsMap[a.id]=cr.success?cr.comments:[];
+  }));
+
+  const publishBar=isAdmin?`<div class="oa-publish-bar"><button id="oa-publish-btn"><i class="fas fa-pen"></i> 发布公众号文章</button></div>`:'';
+
+  const articlesHtml=articles.map(a=>{
+    const comments=commentsMap[a.id]||[];
+    const commentsHtml=comments.map(c=>`
+      <div class="oa-comment">
+        <span class="cmt-name">${escapeHTML(c.fromUser?.nickname||c.from)}</span>
+        <span>: ${escapeHTML(c.content)}</span>
+        ${c.createdAt?`<span class="cmt-time">${formatMomentTime(c.createdAt)}</span>`:''}
+      </div>
+    `).join('');
+    return `<div class="oa-article" data-id="${a.id}">
       <div class="art-title">${escapeHTML(a.title)}</div>
-      <div class="art-excerpt">${escapeHTML(a.excerpt).replace(/\n/g,'<br>')}</div>
+      <div class="art-excerpt">${escapeHTML(a.excerpt||a.content).replace(/\n/g,'<br>')}</div>
+      <div class="art-content">${escapeHTML(a.content||a.excerpt).replace(/\n/g,'<br>')}</div>
       <div class="art-meta">${formatChatTime(a.time)}</div>
+      <div class="oa-comments">
+        ${commentsHtml}
+        <div class="oa-comment-input">
+          <input type="text" data-article="${a.id}" placeholder="写评论..." onkeydown="if(event.key==='Enter')sendOAComment('${a.id}')">
+          <button onclick="sendOAComment('${a.id}')">发送</button>
+        </div>
+      </div>
     </div>`;
   }).join('');
 
@@ -3193,7 +3255,8 @@ async function renderOfficialAccount(){
     <div class="oa-desc">${oa&&oa.bio?escapeHTML(oa.bio):'无聊官方公众号 · 发布最新公告和使用指南'}</div>
     <button class="oa-btn ${isFriend?'added':''}" id="oa-follow-btn">${isFriend?'已关注':'关注公众号'}</button>
   </div>
-  <div class="oa-articles">${articlesHtml}</div>`;
+  ${publishBar}
+  <div class="oa-articles">${articlesHtml||'<div class="search-empty" style="padding:40px 0;"><p>暂无文章</p></div>'}</div>`;
 
   $('oa-chat-section').style.display='flex';
 
@@ -3210,6 +3273,42 @@ async function renderOfficialAccount(){
       }
     };
   }
+
+  if(isAdmin){
+    const pubBtn=$('oa-publish-btn');
+    if(pubBtn) pubBtn.onclick=openOAPublish;
+  }
+}
+
+async function sendOAComment(articleId){
+  if(!currentUser||!articleId) return;
+  const input=document.querySelector(`#oa-content input[data-article="${articleId}"]`);
+  if(!input) return;
+  const content=input.value.trim();
+  if(!content) return;
+  const r=await api('/api/oa/comments/create',{articleId,username:currentUser.username,content});
+  if(r.success){
+    input.value='';
+    renderOfficialAccount();
+  }else{
+    toast(r.msg||'评论失败');
+  }
+}
+
+function openOAPublish(){
+  const title=prompt('文章标题：');
+  if(!title||!title.trim()) return;
+  const excerpt=prompt('文章摘要/简介（可选）：',title.trim());
+  const content=prompt('文章内容：');
+  if(!content||!content.trim()) return;
+  api('/api/oa/articles/create',{username:currentUser.username,title:title.trim(),excerpt:(excerpt||title).trim(),content:content.trim()}).then(r=>{
+    if(r.success){
+      toast('文章已发布');
+      renderOfficialAccount();
+    }else{
+      toast(r.msg||'发布失败');
+    }
+  });
 }
 
 let lastOAMsgsHash='';

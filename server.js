@@ -138,7 +138,9 @@ async function loadFromSupabase() {
     'moment_likes': (id, data) => { memMomentLikes[id] = data; },
     'moment_comments': (id, data) => { memMomentComments[id] = data; },
     'groups': (id, data) => { memGroups[id] = data; },
-    'group_messages': (id, data) => { memGroupMessages[id] = data; }
+    'group_messages': (id, data) => { memGroupMessages[id] = data; },
+    'oa_articles': (id, data) => { memOAArticles = data; },
+    'oa_comments': (id, data) => { memOAComments[id] = data; }
   };
 
   for (const type of Object.keys(typeMap)) {
@@ -184,6 +186,8 @@ function syncAllToFiles() {
     Object.entries(memMomentComments).forEach(([k, v]) => writeJSON(momentCommentsFile(k), v));
     Object.values(memGroups).forEach(g => writeJSON(groupFile(g.id), g));
     Object.entries(memGroupMessages).forEach(([k, v]) => writeJSON(groupMsgFile(k), v));
+    writeJSON(oaArticlesFile(), memOAArticles);
+    Object.entries(memOAComments).forEach(([k, v]) => writeJSON(oaCommentsFile(k), v));
   } catch (e) {
     console.error('[ERROR] syncAllToFiles failed:', e.message);
   }
@@ -212,9 +216,11 @@ const MOMENTS_DIR = DATA_DIR ? path.join(DATA_DIR, 'moments') : null;
 const MOMENT_LIKES_DIR = DATA_DIR ? path.join(DATA_DIR, 'moment-likes') : null;
 const MOMENT_COMMENTS_DIR = DATA_DIR ? path.join(DATA_DIR, 'moment-comments') : null;
 const AVATAR_DIR = DATA_DIR ? path.join(DATA_DIR, 'avatars') : null;
+const OA_ARTICLES_DIR = DATA_DIR ? path.join(DATA_DIR, 'oa-articles') : null;
+const OA_COMMENTS_DIR = DATA_DIR ? path.join(DATA_DIR, 'oa-comments') : null;
 
 if (DATA_DIR) {
-  [USERS_DIR, FRIENDS_DIR, MSG_DIR, REQ_DIR, MOMENTS_DIR, MOMENT_LIKES_DIR, MOMENT_COMMENTS_DIR, AVATAR_DIR, groupsDir()].forEach(d => {
+  [USERS_DIR, FRIENDS_DIR, MSG_DIR, REQ_DIR, MOMENTS_DIR, MOMENT_LIKES_DIR, MOMENT_COMMENTS_DIR, AVATAR_DIR, groupsDir(), OA_ARTICLES_DIR, OA_COMMENTS_DIR].forEach(d => {
     try { fs.mkdirSync(d, { recursive: true }); } catch (e) {}
   });
 }
@@ -231,6 +237,8 @@ let memFeatureFlags = { scanEnabled: true };
 let memReadMarkers = {};
 let memGroups = {};
 let memGroupMessages = {};
+let memOAArticles = [];
+let memOAComments = {};
 
 /* ============ 文件工具 ============ */
 function userFile(u) { return path.join(USERS_DIR, u + '.json'); }
@@ -246,6 +254,8 @@ function readMarkersFile(username) { return path.join(MSG_DIR, 'read_' + usernam
 function groupsDir() { return DATA_DIR ? path.join(DATA_DIR, 'groups') : null; }
 function groupFile(groupId) { return path.join(groupsDir(), groupId + '.json'); }
 function groupMsgFile(groupId) { return path.join(groupsDir(), groupId + '_msgs.json'); }
+function oaArticlesFile() { return path.join(OA_ARTICLES_DIR, 'all.json'); }
+function oaCommentsFile(articleId) { return path.join(OA_COMMENTS_DIR, articleId + '.json'); }
 
 function readJSON(file, def) {
   if (!file || !DATA_DIR) return def;
@@ -610,6 +620,83 @@ function getUserGroups(username) {
   return result;
 }
 
+/* ============ 公众号 ============ */
+function getOAArticles() {
+  if (DATA_DIR) {
+    const a = readJSON(oaArticlesFile(), null);
+    if (a) return a;
+  }
+  return memOAArticles;
+}
+
+function saveOAArticles(list) {
+  memOAArticles = list;
+  if (DATA_DIR) writeJSON(oaArticlesFile(), list);
+  if (supabaseEnabled()) supabaseUpsert('all', 'oa_articles', list).catch(e => console.error('[Supabase] saveOAArticles failed:', e.message));
+  return true;
+}
+
+function createOAArticle(username, title, excerpt, content) {
+  const article = {
+    id: 'oa_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    author: username,
+    title: title || '',
+    excerpt: excerpt || '',
+    content: content || '',
+    time: Date.now()
+  };
+  const list = getOAArticles();
+  list.unshift(article);
+  saveOAArticles(list);
+  saveOAComments(article.id, []);
+  return article;
+}
+
+function getOAComments(articleId) {
+  if (DATA_DIR) {
+    const c = readJSON(oaCommentsFile(articleId), null);
+    if (c) return c;
+  }
+  return memOAComments[articleId] || [];
+}
+
+function saveOAComments(articleId, list) {
+  memOAComments[articleId] = list;
+  if (DATA_DIR) writeJSON(oaCommentsFile(articleId), list);
+  if (supabaseEnabled()) supabaseUpsert(articleId, 'oa_comments', list).catch(e => console.error('[Supabase] saveOAComments failed:', e.message));
+  return true;
+}
+
+function addOAComment(articleId, username, content) {
+  const article = getOAArticles().find(a => a.id === articleId);
+  if (!article) return { success: false, msg: '文章不存在' };
+  const comments = getOAComments(articleId);
+  const user = getUser(username);
+  comments.push({
+    id: 'oac_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    articleId,
+    from: username,
+    fromUser: user ? { username: user.username, nickname: user.nickname, avatar: user.avatar, customAvatar: user.customAvatar, avatarData: user.avatarData } : null,
+    content,
+    createdAt: Date.now()
+  });
+  saveOAComments(articleId, comments);
+  return { success: true, comments };
+}
+
+function initDefaultOAArticles() {
+  const existing = getOAArticles();
+  if (existing.length === 0) {
+    const defaults = [
+      { id: 'oa_default_1', author: 'admin', title: '欢迎关注无聊官方公众号', excerpt: '无聊是一款简洁的即时通讯应用，支持加好友、聊天等功能。在这里你可以查看最新公告和使用指南。', content: '无聊是一款简洁的即时通讯应用，支持加好友、聊天等功能。在这里你可以查看最新公告和使用指南。', time: Date.now() - 86400000 },
+      { id: 'oa_default_2', author: 'admin', title: '如何添加好友？', excerpt: '点击通讯录 → 添加朋友 → 输入对方的无聊号即可添加好友。添加成功后，好友会出现在通讯录和聊天列表中，点击即可开始聊天。', content: '点击通讯录 → 添加朋友 → 输入对方的无聊号即可添加好友。添加成功后，好友会出现在通讯录和聊天列表中，点击即可开始聊天。', time: Date.now() - 172800000 },
+      { id: 'oa_default_3', author: 'admin', title: '无聊使用小贴士', excerpt: '1. 在"我"页面可以设置个性签名\n2. 聊天列表按最近消息时间排序\n3. 支持多设备同时登录\n4. 消息实时同步，不用担心遗漏', content: '1. 在"我"页面可以设置个性签名\n2. 聊天列表按最近消息时间排序\n3. 支持多设备同时登录\n4. 消息实时同步，不用担心遗漏', time: Date.now() - 259200000 }
+    ];
+    saveOAArticles(defaults);
+    defaults.forEach(a => saveOAComments(a.id, []));
+  }
+}
+
 /* ============ 朋友圈 ============ */
 function getAllMoments() {
   if (DATA_DIR) {
@@ -757,6 +844,8 @@ async function initDefaultData() {
   memMoments = [];
   memMomentLikes = {};
   memMomentComments = {};
+  memOAArticles = [];
+  memOAComments = {};
 
   let sbLoaded = false;
   if (supabaseEnabled()) {
@@ -807,6 +896,7 @@ async function initDefaultData() {
         });
 
         console.log('[INFO] Local data loaded');
+        initDefaultOAArticles();
         return;
       }
     } catch (e) {
@@ -825,9 +915,11 @@ async function initDefaultData() {
     addFriend('alice', 'bob');
     createMoment('alice', '今天天气真好~', [], []);
     createMoment('bob', '你好世界', [], []);
+    initDefaultOAArticles();
     console.log('[INFO] Default data initialized');
   } else {
     console.log('[INFO] Supabase enabled but no data found, starting with empty state');
+    initDefaultOAArticles();
   }
 }
 
@@ -1210,6 +1302,38 @@ const server = http.createServer(async (req, res) => {
     all.splice(idx, 1);
     saveAllMoments(all);
     return send(res, 200, { success: true });
+  }
+
+  /* ====== 公众号：获取文章列表 ====== */
+  if (req.method === 'GET' && url === '/api/oa/articles') {
+    const articles = getOAArticles();
+    return send(res, 200, { success: true, articles });
+  }
+
+  /* ====== 公众号：发布文章（仅admin） ====== */
+  if (req.method === 'POST' && url === '/api/oa/articles/create') {
+    const body = await readBody(req);
+    const { username, title, excerpt, content } = body;
+    if (!username || !title || !content) return send(res, 200, { success: false, msg: '参数错误' });
+    if (username !== 'admin') return send(res, 200, { success: false, msg: '无权限发布' });
+    const article = createOAArticle(username, title, excerpt, content);
+    return send(res, 200, { success: true, article });
+  }
+
+  /* ====== 公众号：获取文章评论 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/oa/comments/')) {
+    const articleId = decodeURIComponent(url.slice('/api/oa/comments/'.length));
+    const comments = getOAComments(articleId);
+    return send(res, 200, { success: true, comments });
+  }
+
+  /* ====== 公众号：发表评论 ====== */
+  if (req.method === 'POST' && url === '/api/oa/comments/create') {
+    const body = await readBody(req);
+    const { articleId, username, content } = body;
+    if (!articleId || !username || !content) return send(res, 200, { success: false, msg: '参数错误' });
+    const result = addOAComment(articleId, username, content);
+    return send(res, 200, result);
   }
 
   /* ====== 调试端点 ====== */
