@@ -4610,6 +4610,10 @@ async function openGroupInfo(groupId){
         <div style="flex:1;color:var(--text);"><i class="fas fa-user-plus"></i> 添加成员</div>
         <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
       </div>
+      <div class="up-row" style="cursor:pointer;color:#ef4444;" id="gi-dissolve-btn">
+        <div style="flex:1;"><i class="fas fa-trash"></i> 解散群聊</div>
+        <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
+      </div>
     </div>`:''}
     <div class="gi-section-title">群成员（${members.length}）</div>
     <div class="gi-members">
@@ -4676,6 +4680,25 @@ async function openGroupInfo(groupId){
         }else{
           toast(r.msg||'修改失败');
         }
+      }
+    };
+  }
+
+  // 解散群聊
+  if($('gi-dissolve-btn')){
+    $('gi-dissolve-btn').onclick=async()=>{
+      if(!confirm(`确定要解散群聊「${group.name}」吗？此操作不可恢复，所有群消息将被删除。`)) return;
+      const r=await api('/api/groups/dissolve',{username:currentUser.username,groupId},'DELETE');
+      if(r.success){
+        toast('群聊已解散');
+        $('group-info-view').classList.remove('show');
+        if(currentGroupId===groupId){
+          $('chat-detail-view').classList.remove('show');
+          currentGroupId=null;
+        }
+        renderAll();
+      }else{
+        toast(r.msg||'解散失败');
       }
     };
   }

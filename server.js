@@ -1070,10 +1070,35 @@ const server = http.createServer(async (req, res) => {
     if (!username || !groupId || !member) return send(res, 200, { success: false, msg: '参数错误' });
     const group = getGroup(groupId);
     if (!group) return send(res, 200, { success: false, msg: '群不存在' });
+    if (!group.members) group.members = [];
     if (!group.members.includes(username)) return send(res, 200, { success: false, msg: '你不是群成员' });
-    if (!getUser(member) || !areFriends(username, member)) return send(res, 200, { success: false, msg: `${member}不是你的好友` });
+    if (!getUser(member)) return send(res, 200, { success: false, msg: '用户不存在' });
+    if (!areFriends(username, member)) return send(res, 200, { success: false, msg: `${member}不是你的好友，请先添加好友` });
+    if (group.members.includes(member)) return send(res, 200, { success: false, msg: '该用户已在群内' });
     const result = addGroupMember(groupId, member);
     return send(res, 200, result);
+  }
+
+  /* ====== 解散群聊 ====== */
+  if (req.method === 'DELETE' && url === '/api/groups/dissolve') {
+    const body = await readBody(req);
+    const { username, groupId } = body;
+    if (!username || !groupId) return send(res, 200, { success: false, msg: '参数错误' });
+    const group = getGroup(groupId);
+    if (!group) return send(res, 200, { success: false, msg: '群不存在' });
+    if (group.creator !== username) return send(res, 200, { success: false, msg: '只有群主可以解散群聊' });
+    
+    delete memGroups[groupId];
+    delete memGroupMessages[groupId];
+    
+    if (DATA_DIR) {
+      const gFile = groupFile(groupId);
+      const gmFile = groupMsgFile(groupId);
+      if (fs.existsSync(gFile)) fs.unlinkSync(gFile);
+      if (fs.existsSync(gmFile)) fs.unlinkSync(gmFile);
+    }
+    
+    return send(res, 200, { success: true, msg: '群聊已解散' });
   }
 
   /* ====== 移除群成员（踢人） ====== */
