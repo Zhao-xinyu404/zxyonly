@@ -769,7 +769,10 @@
     white-space:pre-wrap;
   }
   .oa-article .oa-comments{
-    margin-top:12px;padding-top:12px;border-top:1px solid var(--line);
+    margin-top:12px;
+  }
+  .oa-article .oa-comments-list{
+    padding-top:12px;border-top:1px solid var(--line);
   }
   .oa-article .oa-comment{
     font-size:13px;color:var(--text);line-height:1.5;padding:4px 0;
@@ -2606,6 +2609,9 @@ $('btn-register').onclick=async()=>{
     $('reg-error').textContent='请填写完整信息';return;
   }
   if(username.length<3){$('reg-error').textContent='无聊号至少3个字符';return;}
+  if(!/^[\u4e00-\u9fa5a-zA-Z0-9]+$/.test(username)){
+    $('reg-error').textContent='无聊号只能包含数字、字母、汉字';return;
+  }
   const r=await api('/api/register',{username,email,password,nickname,avatar:selectedAvatar});
   if(!r.success){
     $('reg-error').textContent=r.msg;
@@ -3174,13 +3180,14 @@ async function renderOfficialAccount(){
         ${c.createdAt?`<span class="cmt-time">${formatMomentTime(c.createdAt)}</span>`:''}
       </div>
     `).join('');
+    const commentsSection=comments.length>0?`<div class="oa-comments-list">${commentsHtml}</div>`:'';
     return `<div class="oa-article" data-id="${a.id}">
       <div class="art-title">${escapeHTML(a.title)}</div>
       <div class="art-excerpt">${escapeHTML(a.excerpt||a.content).replace(/\n/g,'<br>')}</div>
       <div class="art-content">${escapeHTML(a.content||a.excerpt).replace(/\n/g,'<br>')}</div>
       <div class="art-meta">${formatChatTime(a.time)}</div>
       <div class="oa-comments">
-        ${commentsHtml}
+        ${commentsSection}
         <div class="oa-comment-input">
           <input type="text" data-article="${a.id}" placeholder="写评论..." onkeydown="if(event.key==='Enter')sendOAComment('${a.id}')">
           <button onclick="sendOAComment('${a.id}')">发送</button>
