@@ -775,7 +775,10 @@
     margin-top:12px;
   }
   .oa-article .oa-comments-list{
-    padding-top:12px;border-top:1px solid var(--line);
+    padding-top:12px;padding-bottom:8px;border-top:1px solid var(--line);
+  }
+  .oa-article .oa-comments-list:empty{
+    display:none;
   }
   .oa-article .oa-comment{
     font-size:13px;color:var(--text);line-height:1.5;padding:4px 0;
@@ -787,7 +790,10 @@
     font-size:11px;color:var(--text-3);margin-left:4px;
   }
   .oa-article .oa-comment-input{
-    display:flex;gap:8px;margin-top:8px;align-items:center;
+    display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--line);align-items:center;
+  }
+  .oa-article .oa-comments-list+.oa-comment-input{
+    padding-top:0;border-top:none;margin-top:8px;
   }
   .oa-article .oa-comment-input input{
     flex:1;height:34px;border:1px solid var(--line);border-radius:4px;
@@ -4659,12 +4665,21 @@ async function openAddGroupMember(groupId){
   $('cg-submit').onclick=async()=>{
     const selected=[...$('cg-content').querySelectorAll('.cg-check.checked')].map(c=>c.dataset.user);
     if(selected.length===0){toast('请选择好友');return;}
+    let added=0;
     for(const username of selected){
-      await api('/api/groups/add-member',{username:currentUser.username,groupId,member:username});
+      const r=await api('/api/groups/add-member',{username:currentUser.username,groupId,member:username});
+      if(r.success) added++;
     }
-    toast(`已添加 ${selected.length} 位成员`);
-    $('create-group-view').classList.remove('show');
-    openGroupInfo(groupId);
+    if(added>0){
+      toast(`已添加 ${added} 位成员`);
+      $('create-group-view').classList.remove('show');
+      await openGroupInfo(groupId);
+      if(currentGroupId===groupId){
+        await renderGroupMessages();
+      }
+    }else{
+      toast('添加失败');
+    }
   };
   
   $('cg-content').querySelectorAll('.cg-item').forEach(item=>{
