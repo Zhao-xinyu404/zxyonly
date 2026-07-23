@@ -972,12 +972,8 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'POST' && url === '/api/register') {
     const body = await readBody(req);
     const { username, password, nickname, avatar, email } = body;
-    if (!username || !password || !nickname || !email) return send(res, 200, { success: false, msg: '请填写完整信息' });
-    if (username.length < 3) return send(res, 200, { success: false, msg: '无聊号至少3个字符' });
-    if (password.length < 4) return send(res, 200, { success: false, msg: '密码至少4位' });
+    if (!username || !password || !nickname) return send(res, 200, { success: false, msg: '请填写完整信息' });
     if (getUser(username)) return send(res, 200, { success: false, msg: '该无聊号已被注册' });
-    const allUsers = getAllUsers();
-    if (allUsers.find(u => u.email === email)) return send(res, 200, { success: false, msg: '该邮箱已被注册' });
     const user = { username, password, nickname, avatar: avatar || 1, bio: '', email, createdAt: Date.now() };
     saveUser(user);
     saveFriends(username, []);
@@ -989,15 +985,16 @@ const server = http.createServer(async (req, res) => {
   /* ====== 登录 ====== */
   if (req.method === 'POST' && url === '/api/login') {
     const body = await readBody(req);
-    const { username, password } = body;
-    // 先按无聊号查找
+    let { username, password } = body;
+    username = (username || '').trim();
+    if (!username || !password) return send(res, 200, { success: false, msg: '请输入无聊号和密码' });
     let user = getUser(username);
-    // 如果没找到，按邮箱查找
     if (!user) {
       const allUsers = getAllUsers();
       user = allUsers.find(u => u.email === username);
     }
-    if (!user || user.password !== password) return send(res, 200, { success: false, msg: '无聊号/邮箱或密码错误' });
+    if (!user) return send(res, 200, { success: false, msg: '用户不存在' });
+    if (user.password !== password) return send(res, 200, { success: false, msg: '密码错误' });
     return send(res, 200, { success: true, user });
   }
 

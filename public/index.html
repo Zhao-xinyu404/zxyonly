@@ -2639,23 +2639,11 @@ $('btn-register').onclick=async()=>{
   if(!username){
     $('reg-error').textContent='请输入无聊号';return;
   }
-  if(username.length<3){
-    $('reg-error').textContent='无聊号至少3个字符';return;
-  }
-  if(!/^[\u4e00-\u9fa5a-zA-Z0-9]+$/.test(username)){
-    $('reg-error').textContent='无聊号只能包含数字、字母、汉字';return;
-  }
   if(!nickname){
     $('reg-error').textContent='请输入昵称';return;
   }
-  if(!email){
-    $('reg-error').textContent='请输入邮箱';return;
-  }
   if(!password){
     $('reg-error').textContent='请输入密码';return;
-  }
-  if(password.length<4){
-    $('reg-error').textContent='密码至少4位';return;
   }
   const r=await api('/api/register',{username,email,password,nickname,avatar:selectedAvatar});
   if(!r.success){
