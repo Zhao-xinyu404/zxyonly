@@ -429,6 +429,23 @@
   .search-loading{
     text-align:center;padding:20px;color:var(--text-3);font-size:13px;
   }
+  .page-loading{
+    position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+    display:flex;flex-direction:column;align-items:center;gap:10px;
+    z-index:1000;
+  }
+  .page-loading .spinner{
+    width:32px;height:32px;border:3px solid var(--line);
+    border-top-color:var(--brand);border-radius:50%;
+    animation:spin 0.8s linear infinite;
+  }
+  .page-loading .text{
+    font-size:13px;color:var(--text-2);
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .list-loading{
+    text-align:center;padding:30px;color:var(--text-3);font-size:13px;
+  }
   .search-more{
     text-align:center;padding:12px;color:var(--brand);font-size:13px;cursor:pointer;
     border-bottom:1px solid var(--line);
@@ -2083,8 +2100,10 @@
             <div class="info"><div class="name">设置</div></div>
             <i class="fas fa-chevron-right arrow"></i>
           </div>
-          <div id="admin-entry" style="display:none;position:fixed;bottom:80px;right:12px;font-size:10px;padding:4px 8px;background:rgba(239,68,68,0.1);color:var(--danger);border-radius:4px;cursor:pointer;z-index:100;">
-            <i class="fas fa-shield-halved"></i> 后台管理
+          <div class="list-row" id="admin-entry" style="display:none;">
+            <div class="avatar" style="background:transparent;"><i class="fas fa-shield-halved" style="color:var(--danger);"></i></div>
+            <div class="info"><div class="name" style="color:var(--danger);">后台管理</div></div>
+            <i class="fas fa-chevron-right arrow"></i>
           </div>
           <div class="list-row" id="btn-logout">
             <div class="avatar" style="background:transparent;"><i class="fas fa-right-from-bracket" style="color:var(--danger);"></i></div>
@@ -2379,6 +2398,10 @@
 
   <!-- Toast -->
   <div class="toast" id="toast"></div>
+  <div class="page-loading" id="page-loading">
+    <div class="spinner"></div>
+    <div class="text">加载中...</div>
+  </div>
 
 </div>
 
@@ -2531,12 +2554,22 @@ function updateChatTabBadge(){
 async function refreshAuth(){
   const u=localStorage.getItem('wuliao_session');
   if(u){
+    $('auth-view').style.display='none';
+    $('main-view').classList.add('show');
+    $('chat-detail-view').classList.remove('show');
+    switchTab('chat');
+    $('chat-list').innerHTML=`<div class="list-loading">加载中...</div>`;
+    $('contacts-list').innerHTML=`<div class="list-loading">加载中...</div>`;
     const r=await api(`/api/user/${u}`,'','GET');
     if(r.success){
       currentUser=r.user;
-      enterMain();
+      startPolling();
+      renderAll();
+      updateFeatureVisibility();
+      fetchUnreadAndNotify();
       return;
     }
+    localStorage.removeItem('wuliao_session');
   }
   showAuth();
 }
