@@ -459,6 +459,75 @@
     transition:transform .25s ease;
   }
   #video-view.show{transform:translateX(0);}
+
+  /* 听一听页 */
+  #listen-view{
+    position:absolute;top:0;left:0;right:0;bottom:0;
+    background:#fff;display:flex;flex-direction:column;
+    z-index:100;transform:translateX(100%);transition:transform .25s ease;
+  }
+  #listen-view.show{transform:translateX(0);}
+  .listen-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .listen-banner{
+    background:linear-gradient(135deg,#1db954,#1ed760);
+    padding:24px 20px;color:#fff;
+  }
+  .listen-banner h2{font-size:22px;margin-bottom:4px;}
+  .listen-banner p{font-size:13px;opacity:0.9;}
+  .listen-section{padding:16px;}
+  .listen-section-title{font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+  .listen-playlists{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;}
+  .listen-playlists::-webkit-scrollbar{display:none;}
+  .playlist-card{
+    flex-shrink:0;width:120px;cursor:pointer;
+  }
+  .playlist-cover{
+    width:120px;height:120px;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;
+    font-size:40px;color:#fff;position:relative;overflow:hidden;
+  }
+  .playlist-card .playlist-name{
+    font-size:13px;margin-top:6px;font-weight:500;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .playlist-card .playlist-count{font-size:11px;color:var(--text-3);margin-top:2px;}
+  .listen-song-list{padding:0 16px;}
+  .listen-song-item{
+    display:flex;align-items:center;gap:12px;
+    padding:10px 0;border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .listen-song-item:last-child{border-bottom:none;}
+  .listen-song-item .song-index{
+    width:28px;text-align:center;font-size:14px;color:var(--text-3);flex-shrink:0;
+  }
+  .listen-song-item.playing .song-index{color:var(--brand);}
+  .listen-song-item .song-info{flex:1;min-width:0;}
+  .listen-song-item .song-title{
+    font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .listen-song-item.playing .song-title{color:var(--brand);font-weight:500;}
+  .listen-song-item .song-artist{font-size:12px;color:var(--text-3);margin-top:2px;}
+  .listen-song-item .song-duration{font-size:12px;color:var(--text-3);flex-shrink:0;}
+  .listen-now-playing{
+    flex-shrink:0;padding:10px 16px;background:#f9f9f9;
+    border-top:1px solid var(--line);display:flex;align-items:center;gap:12px;
+  }
+  .listen-now-playing .np-cover{
+    width:44px;height:44px;border-radius:8px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;
+  }
+  .listen-now-playing .np-info{flex:1;min-width:0;}
+  .listen-now-playing .np-title{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .listen-now-playing .np-artist{font-size:12px;color:var(--text-3);}
+  .listen-now-playing .np-controls{display:flex;align-items:center;gap:8px;}
+  .listen-now-playing .np-controls button{
+    border:none;background:none;cursor:pointer;font-size:18px;color:var(--text);
+    width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  }
+  .listen-now-playing .np-controls .play-btn{font-size:24px;color:var(--brand);}
+  .listen-empty{text-align:center;padding:40px 20px;color:var(--text-3);}
+  .listen-empty i{font-size:48px;margin-bottom:12px;display:block;}
   .scanner-header{
     display:flex;align-items:center;justify-content:space-between;
     padding:12px 16px;
@@ -2041,6 +2110,11 @@
             <div class="info"><div class="name">视频号</div></div>
             <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
           </div>
+          <div class="list-row" id="listen-entry">
+            <div class="avatar"><i class="fas fa-music" style="color:#1db954;"></i></div>
+            <div class="info"><div class="name">听一听</div></div>
+            <i class="fas fa-chevron-right" style="color:var(--text-3);"></i>
+          </div>
           <div class="list-row" id="scan-entry">
             <div class="avatar"><i class="fas fa-qrcode" style="color:#3b82f6;"></i></div>
             <div class="info"><div class="name">扫一扫</div></div>
@@ -2200,6 +2274,28 @@
       <button class="icon-btn" onclick="window.open('https://kpfshanghai.m.chenzhongtech.com/fw/user/zxy110905110905?fid=2582199207&cc=share_wxms&followRefer=151&shareMethod=CARD&kpn=NEBULA&subBiz=PROFILE&shareId=19046254814022&shareToken=X-1lODNgASHnxuqz&shareResourceType=PROFILE_OTHER&shareMode=APP&originShareId=19046254814022&appType=21&shareObjectId=1893425837&shareUrlOpened=0&timestamp=1784722189742','_blank')"><i class="fas fa-external-link-alt"></i></button>
     </div>
     <iframe id="video-iframe" src="" style="flex:1;border:none;width:100%;" allow="fullscreen"></iframe>
+  </div>
+
+  <!-- ============ 听一听页 ============ -->
+  <div id="listen-view">
+    <div class="chat-detail-header">
+      <button class="icon-btn" id="listen-back"><i class="fas fa-chevron-left"></i></button>
+      <h3>听一听</h3>
+      <button class="icon-btn"></button>
+    </div>
+    <div class="listen-body" id="listen-body"></div>
+    <div class="listen-now-playing" id="listen-player" style="display:none;">
+      <div class="np-cover" id="np-cover"><i class="fas fa-music"></i></div>
+      <div class="np-info">
+        <div class="np-title" id="np-title">未播放</div>
+        <div class="np-artist" id="np-artist"></div>
+      </div>
+      <div class="np-controls">
+        <button id="np-prev"><i class="fas fa-backward-step"></i></button>
+        <button class="play-btn" id="np-play"><i class="fas fa-play"></i></button>
+        <button id="np-next"><i class="fas fa-forward-step"></i></button>
+      </div>
+    </div>
   </div>
 
   <!-- ============ 聊天详情页 ============ -->
@@ -4164,6 +4260,172 @@ $('video-back').onclick=()=>{
   $('video-iframe').src='';
 };
 
+/* ============ 听一听 ============ */
+const PLAYLISTS=[
+  {id:'mahanda',name:'马汉达歌单',coverColor:'#e74c3c',icon:'fa-fire',songs:[
+    {title:'起风了',artist:'买辣椒也用券',url:'https://music.163.com/song/media/outer/url?id=1338695686.mp3',duration:'05:25'},
+    {title:'晴天',artist:'周杰伦',url:'https://music.163.com/song/media/outer/url?id=186016.mp3',duration:'04:29'},
+    {title:'七里香',artist:'周杰伦',url:'https://music.163.com/song/media/outer/url?id=185938.mp3',duration:'04:59'},
+    {title:'稻香',artist:'周杰伦',url:'https://music.163.com/song/media/outer/url?id=185760.mp3',duration:'03:43'},
+    {title:'夜曲',artist:'周杰伦',url:'https://music.163.com/song/media/outer/url?id=185927.mp3',duration:'03:45'},
+    {title:'孤勇者',artist:'陈奕迅',url:'https://music.163.com/song/media/outer/url?id=1903242731.mp3',duration:'04:13'},
+  ]},
+  {id:'yuanhaochen',name:'袁浩晨歌单',coverColor:'#3498db',icon:'fa-bolt',songs:[
+    {title:'海阔天空',artist:'Beyond',url:'https://music.163.com/song/media/outer/url?id=347230.mp3',duration:'05:25'},
+    {title:'光辉岁月',artist:'Beyond',url:'https://music.163.com/song/media/outer/url?id=347208.mp3',duration:'05:30'},
+    {title:'真的爱你',artist:'Beyond',url:'https://music.163.com/song/media/outer/url?id=347205.mp3',duration:'04:35'},
+    {title:'不再犹豫',artist:'Beyond',url:'https://music.163.com/song/media/outer/url?id=347216.mp3',duration:'04:10'},
+    {title:'喜欢你',artist:'Beyond',url:'https://music.163.com/song/media/outer/url?id=28902990.mp3',duration:'03:54'},
+    {title:'浮夸',artist:'陈奕迅',url:'https://music.163.com/song/media/outer/url?id=25957134.mp3',duration:'04:44'},
+  ]},
+  {id:'liuyuduo',name:'刘煜铎歌单',coverColor:'#9b59b6',icon:'fa-star',songs:[
+    {title:'平凡之路',artist:'朴树',url:'https://music.163.com/song/media/outer/url?id=28815250.mp3',duration:'05:01'},
+    {title:'那些花儿',artist:'朴树',url:'https://music.163.com/song/media/outer/url?id=347230.mp3',duration:'04:52'},
+    {title:'生如夏花',artist:'朴树',url:'https://music.163.com/song/media/outer/url?id=2750198.mp3',duration:'05:02'},
+    {title:'蓝莲花',artist:'许巍',url:'https://music.163.com/song/media/outer/url?id=17292271.mp3',duration:'04:46'},
+    {title:'曾经的你',artist:'许巍',url:'https://music.163.com/song/media/outer/url?id=17292267.mp3',duration:'05:11'},
+    {title:'故乡',artist:'许巍',url:'https://music.163.com/song/media/outer/url?id=17292270.mp3',duration:'05:15'},
+  ]},
+];
+
+let listenAudio=null;
+let currentPlaylist=null;
+let currentSongIndex=-1;
+
+function renderListenHome(){
+  let html=`<div class="listen-banner">
+    <h2><i class="fas fa-headphones"></i> 听一听</h2>
+    <p>精选歌单，随时随地享受音乐</p>
+  </div>
+  <div class="listen-section">
+    <div class="listen-section-title"><i class="fas fa-list-music"></i> 推荐歌单</div>
+    <div class="listen-playlists">`;
+  for(const pl of PLAYLISTS){
+    html+=`<div class="playlist-card" data-id="${pl.id}">
+      <div class="playlist-cover" style="background:${pl.coverColor};">
+        <i class="fas ${pl.icon}"></i>
+      </div>
+      <div class="playlist-name">${escapeHTML(pl.name)}</div>
+      <div class="playlist-count">${pl.songs.length}首</div>
+    </div>`;
+  }
+  html+=`</div></div>
+  <div class="listen-empty" id="listen-hint">
+    <i class="fas fa-music"></i>
+    <p>选择一个歌单开始播放</p>
+  </div>`;
+  $('listen-body').innerHTML=html;
+  $('listen-body').querySelectorAll('.playlist-card').forEach(card=>{
+    card.onclick=()=>openPlaylist(card.dataset.id);
+  });
+}
+
+function openPlaylist(playlistId){
+  const pl=PLAYLISTS.find(p=>p.id===playlistId);
+  if(!pl) return;
+  currentPlaylist=pl;
+  let html=`<div class="listen-banner" style="background:${pl.coverColor};">
+    <h2>${escapeHTML(pl.name)}</h2>
+    <p>${pl.songs.length}首歌曲</p>
+  </div>
+  <div class="listen-song-list">`;
+  pl.songs.forEach((s,i)=>{
+    html+=`<div class="listen-song-item" data-index="${i}">
+      <div class="song-index">${i+1}</div>
+      <div class="song-info">
+        <div class="song-title">${escapeHTML(s.title)}</div>
+        <div class="song-artist">${escapeHTML(s.artist)}</div>
+      </div>
+      <div class="song-duration">${s.duration}</div>
+    </div>`;
+  });
+  html+=`</div>`;
+  $('listen-body').innerHTML=html;
+  $('listen-body').querySelectorAll('.listen-song-item').forEach(item=>{
+    item.onclick=()=>{
+      const idx=parseInt(item.dataset.index);
+      playSong(idx);
+    };
+  });
+}
+
+function playSong(index){
+  if(!currentPlaylist||index<0||index>=currentPlaylist.songs.length) return;
+  currentSongIndex=index;
+  const song=currentPlaylist.songs[index];
+  if(!listenAudio){
+    listenAudio=new Audio();
+    listenAudio.addEventListener('ended',()=>{
+      if(currentPlaylist&&currentSongIndex<currentPlaylist.songs.length-1){
+        playSong(currentSongIndex+1);
+      }
+    });
+    listenAudio.addEventListener('play',updatePlayerUI);
+    listenAudio.addEventListener('pause',updatePlayerUI);
+    listenAudio.addEventListener('timeupdate',()=>{
+      if(currentPlaylist&&currentSongIndex>=0){
+        const song=currentPlaylist.songs[currentSongIndex];
+        const cur=listenAudio.currentTime;
+        const total=song.duration;
+        // 可选：更新进度
+      }
+    });
+  }
+  listenAudio.src=song.url;
+  listenAudio.play().catch(()=>{
+    toast('无法播放该歌曲，可能需要联网');
+  });
+  $('listen-player').style.display='flex';
+  $('np-title').textContent=song.title;
+  $('np-artist').textContent=song.artist;
+  $('np-cover').style.background=currentPlaylist.coverColor;
+  $('np-cover').innerHTML=`<i class="fas ${currentPlaylist.icon}"></i>`;
+  // 更新列表高亮
+  $('listen-body').querySelectorAll('.listen-song-item').forEach((item,i)=>{
+    item.classList.toggle('playing',i===index);
+    const idx=item.querySelector('.song-index');
+    if(i===index){
+      idx.innerHTML='<i class="fas fa-volume-high"></i>';
+    }else{
+      idx.textContent=i+1;
+    }
+  });
+  updatePlayerUI();
+}
+
+function updatePlayerUI(){
+  const playIcon=$('np-play').querySelector('i');
+  if(listenAudio&&listenAudio.paused){
+    playIcon.className='fas fa-play';
+  }else{
+    playIcon.className='fas fa-pause';
+  }
+}
+
+$('listen-entry').onclick=()=>{
+  renderListenHome();
+  $('listen-view').classList.add('show');
+};
+$('listen-back').onclick=()=>{
+  $('listen-view').classList.remove('show');
+};
+$('np-play').onclick=()=>{
+  if(!listenAudio) return;
+  if(listenAudio.paused){
+    listenAudio.play().catch(()=>toast('无法播放'));
+  }else{
+    listenAudio.pause();
+  }
+};
+$('np-prev').onclick=()=>{
+  if(!currentPlaylist) return;
+  if(currentSongIndex>0) playSong(currentSongIndex-1);
+};
+$('np-next').onclick=()=>{
+  if(!currentPlaylist) return;
+  if(currentSongIndex<currentPlaylist.songs.length-1) playSong(currentSongIndex+1);
+};
+
 /* ============ 扫一扫 ============ */
 let scannerStream=null;
 let scannerRAF=null;
@@ -4797,6 +5059,7 @@ function getSwipeableViews(){
     {id:'moments-view',backBtn:'moments-back'},
     {id:'search-view',backBtn:'search-back'},
     {id:'video-view',backBtn:'video-back'},
+    {id:'listen-view',backBtn:'listen-back'},
     {id:'scanner-view',backBtn:'scanner-back'},
     {id:'settings-view',backBtn:'settings-back'},
     {id:'user-profile-view',backBtn:'up-back'},
