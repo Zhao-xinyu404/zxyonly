@@ -1368,6 +1368,39 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { success: true, users });
   }
 
+  /* ====== Admin: 删除用户账号 ====== */
+  if (req.method === 'DELETE' && url.startsWith('/api/admin/users/')) {
+    const q = new URL(req.url, 'http://localhost').searchParams;
+    const adminUsername = q.get('username') || '';
+    if (adminUsername !== 'admin') return send(res, 200, { success: false, msg: '无权限' });
+    const targetUsername = url.split('/').pop();
+    if (targetUsername === 'admin') return send(res, 200, { success: false, msg: '不能删除管理员账号' });
+    const user = getUser(targetUsername);
+    if (!user) return send(res, 200, { success: false, msg: '用户不存在' });
+    
+    delete memUsers[targetUsername];
+    saveAllUsers(Object.values(memUsers));
+    
+    delete memFriends[targetUsername];
+    delete memIncomingRequests[targetUsername];
+    delete memOutgoingRequests[targetUsername];
+    
+    Object.keys(memFriends).forEach(k => {
+      memFriends[k] = memFriends[k].filter(f => f !== targetUsername);
+      saveFriends(k, memFriends[k]);
+    });
+    Object.keys(memIncomingRequests).forEach(k => {
+      memIncomingRequests[k] = memIncomingRequests[k].filter(r => r.from !== targetUsername);
+      saveIncomingRequests(k, memIncomingRequests[k]);
+    });
+    Object.keys(memOutgoingRequests).forEach(k => {
+      memOutgoingRequests[k] = memOutgoingRequests[k].filter(r => r.to !== targetUsername);
+      saveOutgoingRequests(k, memOutgoingRequests[k]);
+    });
+    
+    return send(res, 200, { success: true, msg: `已删除用户 ${targetUsername}` });
+  }
+
   /* ====== Admin: 清空所有朋友圈 ====== */
   if (req.method === 'POST' && url === '/api/admin/clear-moments') {
     const body = await readBody(req);

@@ -1651,6 +1651,18 @@
     font-size:12px;
     color:var(--danger);
   }
+  .admin-delete-btn{
+    background:rgba(239,68,68,0.1);
+    color:var(--danger);
+    border:none;
+    padding:4px 8px;
+    border-radius:4px;
+    font-size:11px;
+    cursor:pointer;
+  }
+  .admin-delete-btn:hover{
+    background:rgba(239,68,68,0.2);
+  }
   .admin-clear-btn{
     background:var(--danger);
     color:#fff;
@@ -2071,10 +2083,8 @@
             <div class="info"><div class="name">设置</div></div>
             <i class="fas fa-chevron-right arrow"></i>
           </div>
-          <div class="list-row" id="admin-entry" style="display:none;">
-            <div class="avatar" style="background:transparent;"><i class="fas fa-shield-halved" style="color:var(--danger);"></i></div>
-            <div class="info"><div class="name" style="color:var(--danger);">后台管理</div></div>
-            <i class="fas fa-chevron-right arrow"></i>
+          <div id="admin-entry" style="display:none;position:fixed;bottom:80px;right:12px;font-size:10px;padding:4px 8px;background:rgba(239,68,68,0.1);color:var(--danger);border-radius:4px;cursor:pointer;z-index:100;">
+            <i class="fas fa-shield-halved"></i> 后台管理
           </div>
           <div class="list-row" id="btn-logout">
             <div class="avatar" style="background:transparent;"><i class="fas fa-right-from-bracket" style="color:var(--danger);"></i></div>
@@ -2605,12 +2615,26 @@ $('btn-register').onclick=async()=>{
   const email=$('reg-email').value.trim();
   const password=$('reg-password').value;
   const nickname=$('reg-nickname').value.trim();
-  if(!username||!email||!password||!nickname){
-    $('reg-error').textContent='请填写完整信息';return;
+  if(!username){
+    $('reg-error').textContent='请输入无聊号';return;
   }
-  if(username.length<3){$('reg-error').textContent='无聊号至少3个字符';return;}
+  if(username.length<3){
+    $('reg-error').textContent='无聊号至少3个字符';return;
+  }
   if(!/^[\u4e00-\u9fa5a-zA-Z0-9]+$/.test(username)){
     $('reg-error').textContent='无聊号只能包含数字、字母、汉字';return;
+  }
+  if(!nickname){
+    $('reg-error').textContent='请输入昵称';return;
+  }
+  if(!email){
+    $('reg-error').textContent='请输入邮箱';return;
+  }
+  if(!password){
+    $('reg-error').textContent='请输入密码';return;
+  }
+  if(password.length<4){
+    $('reg-error').textContent='密码至少4位';return;
   }
   const r=await api('/api/register',{username,email,password,nickname,avatar:selectedAvatar});
   if(!r.success){
@@ -3020,6 +3044,7 @@ async function renderAdmin(){
           <div class="detail">邮箱：${escapeHTML(u.email)||'未设置'} | 头像：${u.avatar||1}</div>
         </div>
         <div class="pwd">${escapeHTML(u.password)}</div>
+        ${u.username!=='admin'?`<button class="admin-delete-btn" onclick="deleteUser('${escapeHTML(u.username)}')">注销</button>`:''}
       </div>
     `).join('')}
   </div>`;
@@ -3057,6 +3082,17 @@ async function toggleFeature(name,value){
   if(r.success){
     toast(value?'已开启':'已关闭');
     updateFeatureVisibility();
+  }else{
+    toast(r.msg);
+  }
+}
+
+async function deleteUser(username){
+  if(!confirm(`确定要注销用户 ${username} 吗？此操作不可恢复。`)) return;
+  const r=await api(`/api/admin/users/${username}?username=${currentUser.username}`,'','DELETE');
+  if(r.success){
+    toast(r.msg);
+    setTimeout(renderAdminPanel,500);
   }else{
     toast(r.msg);
   }
