@@ -591,7 +591,8 @@
     color:#fff;font-size:26px;font-weight:600;
   }
   .profile-card .info h3{font-size:19px;font-weight:600;}
-  .profile-card .info .wxid{font-size:13px;color:var(--text-2);margin-top:4px;}
+  .profile-card .info .wxid{font-size:13px;color:var(--text-2);margin-top:4px;display:flex;align-items:center;justify-content:space-between;}
+  .profile-card .info .wxid .change-username-btn{color:var(--brand);font-size:12px;cursor:pointer;}
   .profile-card .info .bio{font-size:12px;color:var(--text-3);margin-top:6px;}
   .profile-card .qr{color:var(--text-3);font-size:18px;}
 
@@ -2364,6 +2365,21 @@
     </div>
   </div>
 
+  <!-- ============ 模态框：修改无聊号 ============ -->
+  <div class="modal-mask" id="change-username-modal">
+    <div class="modal">
+      <div class="modal-header">修改无聊号</div>
+      <div class="modal-body">
+        <input type="text" id="new-username-input" placeholder="输入新的无聊号" autocomplete="off">
+        <div class="hint" id="change-username-hint">每周只能修改一次无聊号。</div>
+      </div>
+      <div class="modal-footer">
+        <button id="change-username-cancel">取消</button>
+        <button class="confirm" id="change-username-ok">确定修改</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ 模态框：通用确认 ============ -->
   <div class="modal-mask" id="confirm-modal">
     <div class="modal">
@@ -2920,7 +2936,8 @@ function renderProfile(){
       }
     }
   };
-  $('profile-username').textContent='无聊号：'+u.username+(u.email?' | '+u.email:'');
+  $('profile-username').innerHTML='<span>无聊号：'+escapeHTML(u.username)+(u.email?' | '+escapeHTML(u.email):'')+'</span><span class="change-username-btn" id="change-username-btn">修改</span>';
+  $('change-username-btn').onclick=()=>openChangeUsername();
   $('profile-bio').textContent=u.bio||'点击设置个性签名...';
   $('profile-bio').onclick=()=>{
     const bio=prompt('设置个性签名：',u.bio||'');
@@ -3129,6 +3146,54 @@ async function clearAllMoments(){
 }
 
 /* ============ 添加好友 ============ */
+function openChangeUsername(){
+  const modal=$('change-username-modal');
+  const input=$('new-username-input');
+  const hint=$('change-username-hint');
+  if(!modal||!input||!hint) return;
+  input.value='';
+  hint.textContent='每周只能修改一次无聊号。';
+  hint.style.color='';
+  modal.classList.add('show');
+  setTimeout(()=>input.focus(),100);
+}
+$('change-username-cancel').onclick=()=>{
+  $('change-username-modal').classList.remove('show');
+};
+$('change-username-ok').onclick=async()=>{
+  const newUsername=$('new-username-input').value.trim();
+  const hint=$('change-username-hint');
+  if(!newUsername){
+    hint.textContent='请输入新的无聊号';
+    hint.style.color='var(--danger)';
+    return;
+  }
+  if(newUsername===currentUser.username){
+    hint.textContent='新无聊号与当前相同';
+    hint.style.color='var(--danger)';
+    return;
+  }
+  const confirmMsg=`确定要将无聊号从「${currentUser.username}」改为「${newUsername}」吗？\n修改后一周内不能再次修改。`;
+  if(!confirm(confirmMsg)) return;
+  hint.textContent='修改中...';
+  hint.style.color='var(--text-2)';
+  const r=await api('/api/profile/change-username',{oldUsername:currentUser.username,newUsername});
+  if(r.success){
+    currentUser=r.user;
+    localStorage.setItem('wuliao_session',newUsername);
+    hint.textContent='修改成功';
+    hint.style.color='var(--brand)';
+    setTimeout(()=>{
+      $('change-username-modal').classList.remove('show');
+      renderAll();
+      toast('无聊号修改成功');
+    },500);
+  }else{
+    hint.textContent=r.msg;
+    hint.style.color='var(--danger)';
+  }
+};
+
 function openAddFriend(){
   const modal=$('add-friend-modal');
   const input=$('friend-username');

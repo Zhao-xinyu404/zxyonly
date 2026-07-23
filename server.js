@@ -576,8 +576,10 @@ function createGroup(creator, members, name) {
 function addGroupMember(groupId, username) {
   const group = getGroup(groupId);
   if (!group) return { success: false, msg: '群不存在' };
+  if (!group.members) group.members = [];
   if (group.members.includes(username)) return { success: false, msg: '已在群内' };
   group.members.push(username);
+  memGroups[groupId] = group;
   saveGroup(group);
   return { success: true };
 }
@@ -585,7 +587,9 @@ function addGroupMember(groupId, username) {
 function removeGroupMember(groupId, username) {
   const group = getGroup(groupId);
   if (!group) return { success: false, msg: '群不存在' };
+  if (!group.members) group.members = [];
   group.members = group.members.filter(m => m !== username);
+  memGroups[groupId] = group;
   saveGroup(group);
   return { success: true };
 }
@@ -1453,15 +1457,119 @@ const server = http.createServer(async (req, res) => {
   /* ====== 更新个人资料 ====== */
   if (req.method === 'POST' && url === '/api/profile/update') {
     const body = await readBody(req);
-    const { username, nickname } = body;
-    if (!username || !nickname) return send(res, 200, { success: false, msg: '参数错误' });
+    const { username, nickname, bio } = body;
+    if (!username) return send(res, 200, { success: false, msg: '参数错误' });
     
-    const user = memUsers[username];
+    const user = getUser(username);
     if (!user) return send(res, 200, { success: false, msg: '用户不存在' });
     
-    user.nickname = nickname;
-    saveUser(username);
-    return send(res, 200, { success: true });
+    if (nickname !== undefined) user.nickname = nickname;
+    if (bio !== undefined) user.bio = bio;
+    memUsers[username] = user;
+    saveUser(user);
+    return send(res, 200, { success: true, user });
+  }
+
+  /* ====== 修改无聊号（每周一次） ====== */
+  if (req.method === 'POST' && url === '/api/profile/change-username') {
+    const body = await readBody(req);
+    const { oldUsername, newUsername } = body;
+    if (!oldUsername || !newUsername) return send(res, 200, { success: false, msg: '参数错误' });
+    
+    const user = getUser(oldUsername);
+    if (!user) return send(res, 200, { success: false, msg: '用户不存在' });
+    
+    if (oldUsername === newUsername) return send(res, 200, { success: false, msg: '新无聊号与旧无聊号相同' });
+    
+    if (getUser(newUsername)) return send(res, 200, { success: false, msg: '该无聊号已被使用' });
+    
+    const lastChange = user.lastUsernameChange || 0;
+    const now = Date.now();
+    const oneWeek = 7 * 24 * 60 * 60 * 1000;
+    if (lastChange && (now - lastChange) < oneWeek) {
+      const remaining = oneWeek - (now - lastChange);
+      const days = Math.floor(remaining / (24 * 60 * 60 * 1000));
+      const hours = Math.floor((remaining % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+      return send(res, 200, { success: false, msg: `距离下次修改还剩 ${days}天${hours}小时` });
+    }
+    
+    const oldFile = userFile(oldUsername);
+    const newFile = userFile(newUsername);
+    user.username = newUsername;
+    user.lastUsernameChange = now;
+    memUsers[newUsername] = user;
+    delete memUsers[oldUsername];
+    saveUser(user);
+    if (DATA_DIR && fs.existsSync(oldFile)) {
+      fs.unlinkSync(oldFile);
+    }
+    
+    const oldFriends = getFriends(oldUsername);
+    const oldIncoming = getIncomingRequests(oldUsername);
+    const oldOutgoing = getOutgoingRequests(oldUsername);
+    const oldRead = getReadMarkers(oldUsername);
+    
+    saveFriends(newUsername, oldFriends);
+    saveIncomingRequests(newUsername, oldIncoming);
+    saveOutgoingRequests(newUsername, oldOutgoing);
+    saveReadMarkers(newUsername, oldRead);
+    
+    if (DATA_DIR) {
+      const oldF = friendsFile(oldUsername);
+      const oldI = incomingReqFile(oldUsername);
+      const oldO = outgoingReqFile(oldUsername);
+      const oldR = readMarkersFile(oldUsername);
+      if (fs.existsSync(oldF)) fs.unlinkSync(oldF);
+      if (fs.existsSync(oldI)) fs.unlinkSync(oldI);
+      if (fs.existsSync(oldO)) fs.unlinkSync(oldO);
+      if (fs.existsSync(oldR)) fs.unlinkSync(oldR);
+    }
+    
+    delete memFriends[oldUsername];
+    delete memIncomingRequests[oldUsername];
+    delete memOutgoingRequests[oldUsername];
+    
+    const allUsers = getAllUsers();
+    for (const u of allUsers) {
+      if (u.username === newUsername) continue;
+      
+      const uFriends = getFriends(u.username);
+      const idx = uFriends.indexOf(oldUsername);
+      if (idx > -1) {
+        uFriends[idx] = newUsername;
+        memFriends[u.username] = uFriends;
+        saveFriends(u.username, uFriends);
+      }
+      
+      const uIncoming = getIncomingRequests(u.username);
+      uIncoming.forEach(r => { if (r.from === oldUsername) r.from = newUsername; });
+      memIncomingRequests[u.username] = uIncoming;
+      saveIncomingRequests(u.username, uIncoming);
+      
+      const uOutgoing = getOutgoingRequests(u.username);
+      uOutgoing.forEach(r => { if (r.to === oldUsername) r.to = newUsername; });
+      memOutgoingRequests[u.username] = uOutgoing;
+      saveOutgoingRequests(u.username, uOutgoing);
+    }
+    
+    const allGroups = Object.values(memGroups);
+    for (const g of allGroups) {
+      let changed = false;
+      if (g.creator === oldUsername) {
+        g.creator = newUsername;
+        changed = true;
+      }
+      if (g.members && g.members.includes(oldUsername)) {
+        g.members = g.members.map(m => m === oldUsername ? newUsername : m);
+        changed = true;
+      }
+      if (changed) {
+        memGroups[g.id] = g;
+        saveGroup(g);
+      }
+    }
+    
+    return send(res, 200, { success: true, user, msg: '无聊号修改成功' });
   }
 
   /* ====== 头像上传 ====== */
