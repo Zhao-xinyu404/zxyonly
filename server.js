@@ -136,7 +136,9 @@ async function loadFromSupabase() {
     'outgoing_requests': (id, data) => { memRequests.outgoing[id] = data; },
     'moments': (id, data) => { memMoments = data; },
     'moment_likes': (id, data) => { memMomentLikes[id] = data; },
-    'moment_comments': (id, data) => { memMomentComments[id] = data; }
+    'moment_comments': (id, data) => { memMomentComments[id] = data; },
+    'groups': (id, data) => { memGroups[id] = data; },
+    'group_messages': (id, data) => { memGroupMessages[id] = data; }
   };
 
   for (const type of Object.keys(typeMap)) {
@@ -180,6 +182,8 @@ function syncAllToFiles() {
     writeJSON(momentsFile(), memMoments);
     Object.entries(memMomentLikes).forEach(([k, v]) => writeJSON(momentLikesFile(k), v));
     Object.entries(memMomentComments).forEach(([k, v]) => writeJSON(momentCommentsFile(k), v));
+    Object.values(memGroups).forEach(g => writeJSON(groupFile(g.id), g));
+    Object.entries(memGroupMessages).forEach(([k, v]) => writeJSON(groupMsgFile(k), v));
   } catch (e) {
     console.error('[ERROR] syncAllToFiles failed:', e.message);
   }
@@ -525,6 +529,7 @@ function getGroup(groupId) {
 function saveGroup(group) {
   memGroups[group.id] = group;
   if (DATA_DIR) writeJSON(groupFile(group.id), group);
+  if (supabaseEnabled()) supabaseUpsert(group.id, 'groups', group).catch(e => console.error('[Supabase] saveGroup failed:', e.message));
   return true;
 }
 
@@ -539,6 +544,7 @@ function getGroupMessages(groupId) {
 function saveGroupMessages(groupId, messages) {
   memGroupMessages[groupId] = messages;
   if (DATA_DIR) writeJSON(groupMsgFile(groupId), messages);
+  if (supabaseEnabled()) supabaseUpsert(groupId, 'group_messages', messages).catch(e => console.error('[Supabase] saveGroupMessages failed:', e.message));
   return true;
 }
 
@@ -977,6 +983,38 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, result);
   }
 
+  /* ====== 移除群成员（踢人） ====== */
+  if (req.method === 'DELETE' && url.startsWith('/api/group-member/')) {
+    const parts = url.slice('/api/group-member/'.length).split('/');
+    const groupId = decodeURIComponent(parts[0] || '');
+    const member = decodeURIComponent(parts[1] || '');
+    if (!groupId || !member) return send(res, 200, { success: false, msg: '参数错误' });
+    const group = getGroup(groupId);
+    if (!group) return send(res, 200, { success: false, msg: '群不存在' });
+    if (group.creator !== member) {
+      /* 仅群主或本人可操作，这里用 query 传 username */
+    }
+    const q = new URL(req.url, 'http://localhost').searchParams;
+    const operator = q.get('username') || '';
+    if (!group.members.includes(operator)) return send(res, 200, { success: false, msg: '你不是群成员' });
+    if (operator !== group.creator && operator !== member) return send(res, 200, { success: false, msg: '只有群主或本人可操作' });
+    const result = removeGroupMember(groupId, member);
+    return send(res, 200, result);
+  }
+
+  /* ====== 修改群名称 ====== */
+  if (req.method === 'POST' && url === '/api/groups/rename') {
+    const body = await readBody(req);
+    const { username, groupId, name } = body;
+    if (!username || !groupId || !name) return send(res, 200, { success: false, msg: '参数错误' });
+    const group = getGroup(groupId);
+    if (!group) return send(res, 200, { success: false, msg: '群不存在' });
+    if (group.creator !== username) return send(res, 200, { success: false, msg: '只有群主可以修改群名称' });
+    group.name = String(name).trim().slice(0, 30);
+    saveGroup(group);
+    return send(res, 200, { success: true, group });
+  }
+
   /* ====== 发送好友请求 ====== */
   if (req.method === 'POST' && url === '/api/friend-request/send') {
     const body = await readBody(req);
@@ -1236,6 +1274,26 @@ const server = http.createServer(async (req, res) => {
   /* ====== 获取功能开关（公开） ====== */
   if (req.method === 'GET' && url === '/api/feature-flags') {
     return send(res, 200, { success: true, flags: memFeatureFlags });
+  }
+
+  /* ====== 获取个人设置 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/settings/')) {
+    const username = decodeURIComponent(url.slice('/api/settings/'.length));
+    const user = getUser(username);
+    if (!user) return send(res, 200, { success: false, msg: '用户不存在' });
+    return send(res, 200, { success: true, settings: { cameraEnabled: user.cameraEnabled !== false } });
+  }
+
+  /* ====== 更新个人设置 ====== */
+  if (req.method === 'POST' && url === '/api/settings/update') {
+    const body = await readBody(req);
+    const { username, settings } = body;
+    if (!username || !settings) return send(res, 200, { success: false, msg: '参数错误' });
+    const user = getUser(username);
+    if (!user) return send(res, 200, { success: false, msg: '用户不存在' });
+    if (typeof settings.cameraEnabled === 'boolean') user.cameraEnabled = settings.cameraEnabled;
+    saveUser(user);
+    return send(res, 200, { success: true, settings: { cameraEnabled: user.cameraEnabled !== false } });
   }
 
   /* ====== 更新个人资料 ====== */

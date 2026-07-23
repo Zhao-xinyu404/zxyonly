@@ -2046,10 +2046,13 @@
           </div>
         </div>
         <div class="profile-menu">
-          <div class="list-row" onclick="toast('设置 敬请期待')">
-            <div class="avatar" style="background:transparent;"><i class="fas fa-gear" style="color:#888;"></i></div>
-            <div class="info"><div class="name">设置</div></div>
-            <i class="fas fa-chevron-right arrow"></i>
+          <div class="list-row" style="padding:12px 14px;">
+            <div class="avatar" style="background:transparent;"><i class="fas fa-camera" style="color:#888;"></i></div>
+            <div class="info" style="flex:1;"><div class="name">摄像头控制</div><div class="detail" style="font-size:12px;color:var(--text-2);">关闭后扫一扫将无法调用摄像头</div></div>
+            <label class="admin-switch">
+              <input type="checkbox" id="setting-camera" checked onchange="toggleCameraSetting(this.checked)">
+              <span class="admin-slider"></span>
+            </label>
           </div>
           <div class="list-row" id="admin-entry" style="display:none;">
             <div class="avatar" style="background:transparent;"><i class="fas fa-shield-halved" style="color:var(--danger);"></i></div>
@@ -2891,6 +2894,33 @@ function renderProfile(){
   if(adminEntry){
     adminEntry.style.display=u.username==='admin'?'flex':'none';
     adminEntry.onclick=openAdmin;
+  }
+
+  // 加载个人摄像头设置
+  loadUserSettings();
+}
+
+let cameraEnabled=true;
+async function loadUserSettings(){
+  if(!currentUser) return;
+  const r=await api(`/api/settings/${encodeURIComponent(currentUser.username)}`,'','GET');
+  if(r.success&&r.settings){
+    cameraEnabled=r.settings.cameraEnabled!==false;
+    const cb=$('setting-camera');
+    if(cb) cb.checked=cameraEnabled;
+  }
+}
+async function toggleCameraSetting(value){
+  if(!currentUser) return;
+  cameraEnabled=value;
+  const r=await api('/api/settings/update',{username:currentUser.username,settings:{cameraEnabled:value}});
+  if(r.success){
+    toast(value?'摄像头已开启':'摄像头已关闭，扫一扫将不可用');
+  }else{
+    toast(r.msg||'更新失败');
+    const cb=$('setting-camera');
+    if(cb) cb.checked=!value;
+    cameraEnabled=!value;
   }
 }
 
@@ -3997,6 +4027,10 @@ let scannerLocked=false;
 let scannerActive=false;
 
 function openScanner(){
+  if(!cameraEnabled){
+    toast('摄像头已关闭，请在"我"页面开启摄像头控制');
+    return;
+  }
   $('scanner-view').classList.add('show');
   $('scanner-result').style.display='none';
   $('scanner-tip').textContent='将二维码放入框内即可扫描';
@@ -4438,9 +4472,9 @@ async function openGroupInfo(groupId){
       ${membersHtml}
     </div>
     <div class="up-section" style="margin-top:10px;">
-      <div class="up-row">
+      <div class="up-row" ${isCreator?`style="cursor:pointer;" id="gi-rename-btn"`:''}>
         <div class="label">群聊名称</div>
-        <div class="value">${escapeHTML(group.name)}</div>
+        <div class="value">${escapeHTML(group.name)}${isCreator?'<i class="fas fa-chevron-right" style="color:var(--text-3);font-size:12px;margin-left:6px;"></i>':''}</div>
       </div>
       <div class="up-row">
         <div class="label">创建时间</div>
@@ -4470,7 +4504,7 @@ async function openGroupInfo(groupId){
       e.stopPropagation();
       const username=btn.dataset.user;
       if(confirm(`确定要移除 ${username} 吗？`)){
-        const r=await api(`/api/group-member/${groupId}/${username}`,'','DELETE');
+        const r=await api(`/api/group-member/${groupId}/${username}?username=${encodeURIComponent(currentUser.username)}`,'','DELETE');
         if(r.success){
           toast('已移除');
           openGroupInfo(groupId);
@@ -4485,7 +4519,23 @@ async function openGroupInfo(groupId){
   if($('gi-add-member-btn')){
     $('gi-add-member-btn').onclick=()=>openAddGroupMember(groupId);
   }
-  
+
+  // 改群名称
+  if($('gi-rename-btn')){
+    $('gi-rename-btn').onclick=async()=>{
+      const newName=prompt('修改群聊名称：',group.name);
+      if(newName&&newName.trim()&&newName.trim()!==group.name){
+        const r=await api('/api/groups/rename',{username:currentUser.username,groupId,name:newName.trim()});
+        if(r.success){
+          toast('群名称已修改');
+          openGroupInfo(groupId);
+        }else{
+          toast(r.msg||'修改失败');
+        }
+      }
+    };
+  }
+
   $('group-info-view').classList.add('show');
 }
 $('gi-back').onclick=()=>$('group-info-view').classList.remove('show');
@@ -4525,7 +4575,7 @@ async function openAddGroupMember(groupId){
     const selected=[...$('cg-content').querySelectorAll('.cg-check.checked')].map(c=>c.dataset.user);
     if(selected.length===0){toast('请选择好友');return;}
     for(const username of selected){
-      await api(`/api/group-member/${groupId}/${username}`,'','POST');
+      await api('/api/groups/add-member',{username:currentUser.username,groupId,member:username});
     }
     toast(`已添加 ${selected.length} 位成员`);
     $('create-group-view').classList.remove('show');
