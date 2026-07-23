@@ -2,8 +2,17 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>无聊 Chat</title>
+<meta name="theme-color" content="#07c160">
+<meta name="description" content="无聊聊天 - 朋友圈、群聊、单聊即时通讯">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="无聊Chat">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
@@ -1286,6 +1295,11 @@
   .moment-item .moment-comment .cmt-name{
     color:#576b95;
     font-weight:500;
+  }
+  .moment-item .moment-comment .cmt-time{
+    font-size:11px;
+    color:var(--text-3);
+    margin-left:4px;
   }
   .moment-item .comment-input-bar{
     display:flex;
@@ -3425,6 +3439,7 @@ function renderMomentItem(m){
           <span class="cmt-name">${escapeHTML(c.fromUser?.nickname||c.from)}</span>
           ${c.replyTo?`<span>: 回复 </span><span class="cmt-name">${escapeHTML(c.replyToUser?.nickname||c.replyTo)}</span>`:''}
           <span>: ${escapeHTML(c.content)}</span>
+          ${c.createdAt?`<span class="cmt-time">${formatMomentTime(c.createdAt)}</span>`:''}
         </div>
       `).join('')}
     </div>`;
@@ -3770,13 +3785,16 @@ async function renderChatMessages(force=false){
   const box=$('chat-messages');
   let html='';
   let lastDate=null;
+  let lastMsgTime=null;
   msgs.forEach(m=>{
     const d=new Date(m.time);
     const dateKey=d.toDateString();
-    if(dateKey!==lastDate){
+    const gap=lastMsgTime?(m.time-lastMsgTime):Infinity;
+    if(dateKey!==lastDate||gap>5*60*1000){
       html+=`<div class="msg-time">${formatChatTime(m.time)}</div>`;
       lastDate=dateKey;
     }
+    lastMsgTime=m.time;
     const isSelf=m.from===currentUser.username;
     const senderUser=isSelf?currentUser:targetUser;
     html+=`<div class="msg ${isSelf?'self':'other'}">
@@ -4025,7 +4043,7 @@ async function startCamera(){
   }
 }
 function scanLoop(){
-  if(!scannerStream) return;
+  if(!scannerStream||!scannerActive) return;
   const video=$('scanner-video');
   const canvas=$('scanner-canvas');
   const ctx=canvas.getContext('2d',{willReadFrequently:true});
@@ -4041,7 +4059,7 @@ function scanLoop(){
       return;
     }
   }
-  scannerRAF=requestAnimationFrame(scanLoop);
+  if(scannerActive) scannerRAF=requestAnimationFrame(scanLoop);
 }
 function handleScanResult(text){
   $('scanner-result').style.display='block';
@@ -4227,14 +4245,17 @@ async function renderGroupMessages(){
   if(!box) return;
   let html='';
   let lastDate=null;
+  let lastMsgTime=null;
   const userCache={};
   for(const m of msgs){
     const d=new Date(m.time);
     const dateKey=d.toDateString();
-    if(dateKey!==lastDate){
+    const gap=lastMsgTime?(m.time-lastMsgTime):Infinity;
+    if(dateKey!==lastDate||gap>5*60*1000){
       html+=`<div class="msg-time">${formatChatTime(m.time)}</div>`;
       lastDate=dateKey;
     }
+    lastMsgTime=m.time;
     const isSelf=m.from===currentUser.username;
     if(!userCache[m.from]){
       const userR=await api(`/api/user/${m.from}`,'','GET');
@@ -4616,6 +4637,13 @@ document.addEventListener('touchend',(e)=>{
 
 /* ============ 初始化 ============ */
 refreshAuth();
+
+/* ============ PWA Service Worker 注册 ============ */
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  });
+}
 </script>
 </body>
 </html>
