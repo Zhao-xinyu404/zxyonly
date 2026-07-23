@@ -1,0 +1,38 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.wuliao.chat.app-mergeDebugResources-18:/values-v16/values-v16.xml",
+            "map": [
+                {
+                    "source": "/root/.gradle/caches/8.14.4/transforms/4b53a547f212f16e0ca849320baf8172/transformed/appcompat-1.6.1/res/values-v16/values-v16.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "5",
+                        "endColumns": "12",
+                        "endOffsets": "223"
+                    },
+                    "to": {
+                        "startLines": "3",
+                        "startColumns": "4",
+                        "startOffsets": "121",
+                        "endLines": "6",
+                        "endColumns": "12",
+                        "endOffsets": "289"
+                    }
+                },
+                {
+                    "source": "/root/.gradle/caches/8.14.4/transforms/2774bf873c3f2a13013b02d12241b382/transformed/core-1.9.0/res/values-v16/values-v16.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "65",
+                        "endOffsets": "116"
+                    }
+                }
+            ]
+        }
+    ]
+}

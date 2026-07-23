@@ -1,0 +1,34 @@
+[
+    {
+        "merged": "com.wuliao.chat.app-merged_res-20:/mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "com.wuliao.chat.app-main-22:/mipmap-xxxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.wuliao.chat.app-merged_res-20:/mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "com.wuliao.chat.app-main-22:/mipmap-xxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.wuliao.chat.app-merged_res-20:/mipmap-hdpi_ic_launcher.png.flat",
+        "source": "com.wuliao.chat.app-main-22:/mipmap-hdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.wuliao.chat.app-merged_res-20:/mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "com.wuliao.chat.app-main-22:/mipmap-xhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.wuliao.chat.app-merged_res-20:/mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "com.wuliao.chat.app-main-22:/mipmap-hdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.wuliao.chat.app-merged_res-20:/mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "com.wuliao.chat.app-main-22:/mipmap-xxhdpi/ic_launcher_round.png"
+    },
+    {
+        "merged": "com.wuliao.chat.app-merged_res-20:/mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "com.wuliao.chat.app-main-22:/mipmap-xxxhdpi/ic_launcher.png"
+    },
+    {
+        "merged": "com.wuliao.chat.app-merged_res-20:/mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "com.wuliao.chat.app-main-22:/mipmap-xhdpi/ic_launcher_round.png"
+    }
+]

@@ -334,6 +334,20 @@
     transition:transform .25s ease;
   }
   #search-view.show{transform:translateX(0);}
+  /* 设置页 */
+  #settings-view{
+    position:absolute;top:0;left:0;right:0;bottom:0;
+    background:var(--bg);
+    display:flex;flex-direction:column;
+    z-index:60;
+    transform:translateX(100%);
+    transition:transform .28s cubic-bezier(.2,.8,.2,1);
+  }
+  #settings-view.show{transform:translateX(0);}
+  .settings-content{
+    flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:10px 0;
+  }
   .search-input-wrap{
     flex:1;
     position:relative;
@@ -2046,13 +2060,10 @@
           </div>
         </div>
         <div class="profile-menu">
-          <div class="list-row" style="padding:12px 14px;">
-            <div class="avatar" style="background:transparent;"><i class="fas fa-camera" style="color:#888;"></i></div>
-            <div class="info" style="flex:1;"><div class="name">摄像头控制</div><div class="detail" style="font-size:12px;color:var(--text-2);">关闭后扫一扫将无法调用摄像头</div></div>
-            <label class="admin-switch">
-              <input type="checkbox" id="setting-camera" checked onchange="toggleCameraSetting(this.checked)">
-              <span class="admin-slider"></span>
-            </label>
+          <div class="list-row" id="settings-entry">
+            <div class="avatar" style="background:transparent;"><i class="fas fa-gear" style="color:#888;"></i></div>
+            <div class="info"><div class="name">设置</div></div>
+            <i class="fas fa-chevron-right arrow"></i>
           </div>
           <div class="list-row" id="admin-entry" style="display:none;">
             <div class="avatar" style="background:transparent;"><i class="fas fa-shield-halved" style="color:var(--danger);"></i></div>
@@ -2102,6 +2113,30 @@
       <div class="search-empty">
         <i class="fas fa-search"></i>
         <p>输入关键词开始搜索</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 设置页 ============ -->
+  <div id="settings-view">
+    <div class="chat-detail-header">
+      <button class="icon-btn" id="settings-back"><i class="fas fa-chevron-left"></i></button>
+      <h3>设置</h3>
+      <div style="width:36px;"></div>
+    </div>
+    <div class="settings-content" id="settings-content">
+      <div class="profile-menu">
+        <div class="list-row" style="padding:14px;">
+          <div class="avatar" style="background:transparent;"><i class="fas fa-camera" style="color:#888;"></i></div>
+          <div class="info" style="flex:1;">
+            <div class="name">摄像头控制</div>
+            <div class="detail" style="font-size:12px;color:var(--text-2);margin-top:3px;">关闭后扫一扫将无法调用摄像头</div>
+          </div>
+          <label class="admin-switch">
+            <input type="checkbox" id="setting-camera" checked onchange="toggleCameraSetting(this.checked)">
+            <span class="admin-slider"></span>
+          </label>
+        </div>
       </div>
     </div>
   </div>
@@ -2896,9 +2931,20 @@ function renderProfile(){
     adminEntry.onclick=openAdmin;
   }
 
+  // 设置入口
+  const settingsEntry=$('settings-entry');
+  if(settingsEntry) settingsEntry.onclick=openSettings;
+
   // 加载个人摄像头设置
   loadUserSettings();
 }
+
+/* ============ 设置页 ============ */
+function openSettings(){
+  loadUserSettings();
+  $('settings-view').classList.add('show');
+}
+$('settings-back').onclick=()=>$('settings-view').classList.remove('show');
 
 let cameraEnabled=true;
 async function loadUserSettings(){
@@ -3775,6 +3821,7 @@ initEmoji();
 async function openChat(friendUsername){
   const r=await api(`/api/user/${friendUsername}`,'','GET');
   if(!r.success){toast('用户不存在');return;}
+  closeSearch();
   currentChatTarget=friendUsername;
   $('chat-target-name').textContent=r.user.nickname;
   $('chat-detail-view').classList.add('show');
@@ -4622,6 +4669,7 @@ function getSwipeableViews(){
     {id:'search-view',backBtn:'search-back'},
     {id:'video-view',backBtn:'video-back'},
     {id:'scanner-view',backBtn:'scanner-back'},
+    {id:'settings-view',backBtn:'settings-back'},
     {id:'user-profile-view',backBtn:'up-back'},
     {id:'group-info-view',backBtn:'gi-back'}
   ];
