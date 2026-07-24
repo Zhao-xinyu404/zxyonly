@@ -1032,6 +1032,68 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  /* ====== 音频代理 ====== */
+  if (req.method === 'GET' && url.startsWith('/api/audio/proxy/')) {
+    const encodedUrl = url.slice('/api/audio/proxy/'.length);
+    let targetUrl;
+    try {
+      targetUrl = decodeURIComponent(encodedUrl);
+    } catch (e) {
+      return send(res, 400, { error: 'Invalid URL' });
+    }
+
+    const isHttps = targetUrl.startsWith('https://');
+    const mod = isHttps ? https : http;
+    const target = new URL(targetUrl);
+
+    const opts = {
+      hostname: target.hostname,
+      port: target.port || (isHttps ? 443 : 80),
+      path: target.pathname + target.search,
+      timeout: 60000
+    };
+
+    let headersSent = false;
+
+    const proxyReq = mod.get(opts, (proxyRes) => {
+      if (proxyRes.statusCode !== 200) {
+        if (!headersSent) {
+          headersSent = true;
+          send(res, proxyRes.statusCode, { error: 'Audio server error' });
+        }
+        return;
+      }
+
+      headersSent = true;
+      res.writeHead(200, {
+        'Content-Type': proxyRes.headers['content-type'] || 'audio/mpeg',
+        'Content-Length': proxyRes.headers['content-length'],
+        'Cache-Control': 'public, max-age=86400',
+        'Access-Control-Allow-Origin': '*'
+      });
+
+      proxyRes.pipe(res);
+    });
+
+    proxyReq.on('error', (e) => {
+      console.error('[ERROR] Audio proxy error:', e.message);
+      if (!headersSent) {
+        headersSent = true;
+        send(res, 500, { error: 'Audio proxy error: ' + e.message });
+      }
+    });
+
+    proxyReq.setTimeout(60000, () => {
+      proxyReq.destroy();
+      if (!headersSent) {
+        headersSent = true;
+        send(res, 504, { error: 'Audio proxy timeout' });
+      }
+    });
+
+    return;
+  }
+
   /* ====== 注册 ====== */
   if (req.method === 'POST' && url === '/api/register') {
     const body = await readBody(req);

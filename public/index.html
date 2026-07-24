@@ -4444,12 +4444,18 @@ function openPlaylist(playlistId){
   });
 }
 
+function getAudioUrl(url){
+  if(!url) return '';
+  return API_BASE + '/api/audio/proxy/' + encodeURIComponent(url);
+}
+
 function playSong(index){
   if(!currentPlaylist||index<0||index>=currentPlaylist.songs.length) return;
   currentSongIndex=index;
   const song=currentPlaylist.songs[index];
   if(!listenAudio){
     listenAudio=new Audio();
+    listenAudio.crossOrigin='anonymous';
     listenAudio.addEventListener('ended',()=>{
       if(currentPlaylist&&currentSongIndex<currentPlaylist.songs.length-1){
         playSong(currentSongIndex+1);
@@ -4465,8 +4471,12 @@ function playSong(index){
         // 可选：更新进度
       }
     });
+    listenAudio.addEventListener('error',(e)=>{
+      console.error('[ERROR] Audio play error:', e);
+      toast('音频播放失败：' + (e.target.error?.message || '未知错误'));
+    });
   }
-  listenAudio.src=song.url;
+  listenAudio.src=getAudioUrl(song.url);
   listenAudio.play().catch(()=>{
     toast('无法播放该歌曲，可能需要联网');
   });
