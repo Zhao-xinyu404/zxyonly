@@ -543,6 +543,70 @@
     width:36px;height:36px;display:flex;align-items:center;justify-content:center;
   }
   .listen-now-playing .np-controls .play-btn{font-size:24px;color:var(--brand);}
+
+  /* 全屏播放器 */
+  .listen-fullplayer{
+    position:absolute;top:0;left:0;right:0;bottom:0;
+    background:linear-gradient(160deg,#1a1a2e 0%,#16213e 100%);
+    z-index:1000;display:none;flex-direction:column;
+    color:#fff;padding:24px 20px;box-sizing:border-box;
+    animation:fullplayerIn .3s ease;
+  }
+  .listen-fullplayer.show{display:flex;}
+  @keyframes fullplayerIn{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+  .fp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;}
+  .fp-header .fp-close{
+    width:36px;height:36px;border:none;background:rgba(255,255,255,0.1);
+    color:#fff;border-radius:50%;font-size:18px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .fp-header .fp-title{font-size:14px;color:rgba(255,255,255,0.6);}
+  .fp-cover{
+    width:260px;height:260px;border-radius:16px;margin:30px auto;
+    display:flex;align-items:center;justify-content:center;
+    color:#fff;font-size:80px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.4);
+    animation:coverPulse 4s ease-in-out infinite;
+  }
+  .listen-fullplayer.paused .fp-cover{animation-play-state:paused;}
+  @keyframes coverPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.03);}}
+  .fp-song-info{text-align:center;margin-bottom:24px;}
+  .fp-song-title{font-size:22px;font-weight:600;margin-bottom:6px;}
+  .fp-song-artist{font-size:14px;color:rgba(255,255,255,0.6);}
+  .fp-progress{margin-bottom:24px;}
+  .fp-progress-bar{
+    width:100%;height:6px;background:rgba(255,255,255,0.15);border-radius:3px;
+    cursor:pointer;position:relative;
+  }
+  .fp-progress-filled{
+    height:100%;background:#fff;border-radius:3px;position:relative;width:0%;
+    transition:width .1s linear;
+  }
+  .fp-progress-filled::after{
+    content:'';position:absolute;right:-8px;top:50%;transform:translateY(-50%);
+    width:16px;height:16px;background:#fff;border-radius:50%;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3);opacity:0;
+    transition:opacity .2s;
+  }
+  .fp-progress-bar:hover .fp-progress-filled::after{opacity:1;}
+  .fp-time{display:flex;justify-content:space-between;margin-top:8px;font-size:12px;color:rgba(255,255,255,0.6);}
+  .fp-controls{display:flex;align-items:center;justify-content:center;gap:30px;margin-bottom:30px;}
+  .fp-controls button{
+    border:none;background:none;color:#fff;cursor:pointer;
+    width:48px;height:48px;display:flex;align-items:center;justify-content:center;
+    font-size:24px;
+  }
+  .fp-controls .fp-play-btn{
+    width:72px;height:72px;background:#fff;color:#1a1a2e;border-radius:50%;font-size:28px;
+  }
+  .fp-extra{display:flex;justify-content:center;gap:30px;}
+  .fp-extra button{
+    border:none;background:none;color:rgba(255,255,255,0.6);cursor:pointer;
+    width:40px;height:40px;font-size:18px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .fp-extra button.active{color:#fff;}
+
   .listen-empty{text-align:center;padding:40px 20px;color:var(--text-3);}
   .listen-empty i{font-size:48px;margin-bottom:12px;display:block;}
   .scanner-header{
@@ -2314,6 +2378,38 @@
         <button id="np-prev"><i class="fas fa-backward-step"></i></button>
         <button class="play-btn" id="np-play"><i class="fas fa-play"></i></button>
         <button id="np-next"><i class="fas fa-forward-step"></i></button>
+      </div>
+    </div>
+
+    <!-- 全屏播放器 -->
+    <div class="listen-fullplayer" id="listen-fullplayer">
+      <div class="fp-header">
+        <button class="fp-close" id="fp-close"><i class="fas fa-chevron-down"></i></button>
+        <div class="fp-title" id="fp-playlist-name">歌单</div>
+        <button class="fp-close"><i class="fas fa-ellipsis"></i></button>
+      </div>
+      <div class="fp-cover" id="fp-cover" style="background:#e74c3c;"><i class="fas fa-music"></i></div>
+      <div class="fp-song-info">
+        <div class="fp-song-title" id="fp-title">未播放</div>
+        <div class="fp-song-artist" id="fp-artist"></div>
+      </div>
+      <div class="fp-progress">
+        <div class="fp-progress-bar" id="fp-progress-bar">
+          <div class="fp-progress-filled" id="fp-progress-filled"></div>
+        </div>
+        <div class="fp-time">
+          <span id="fp-current">0:00</span>
+          <span id="fp-duration">0:00</span>
+        </div>
+      </div>
+      <div class="fp-controls">
+        <button id="fp-prev"><i class="fas fa-backward-step"></i></button>
+        <button class="fp-play-btn" id="fp-play"><i class="fas fa-play"></i></button>
+        <button id="fp-next"><i class="fas fa-forward-step"></i></button>
+      </div>
+      <div class="fp-extra">
+        <button id="fp-mode" title="播放模式"><i class="fas fa-repeat"></i></button>
+        <button id="fp-list" title="歌单"><i class="fas fa-list"></i></button>
       </div>
     </div>
   </div>
@@ -4463,12 +4559,13 @@ function playSong(index){
     });
     listenAudio.addEventListener('play',updatePlayerUI);
     listenAudio.addEventListener('pause',updatePlayerUI);
+    listenAudio.addEventListener('loadedmetadata',updateFullPlayerUI);
     listenAudio.addEventListener('timeupdate',()=>{
       if(currentPlaylist&&currentSongIndex>=0){
         const song=currentPlaylist.songs[currentSongIndex];
         const cur=listenAudio.currentTime;
         const total=song.duration;
-        // 可选：更新进度
+        updateFullPlayerProgress();
       }
     });
     listenAudio.addEventListener('error',(e)=>{
@@ -4485,6 +4582,7 @@ function playSong(index){
   $('np-artist').textContent=song.artist;
   $('np-cover').style.background=currentPlaylist.coverColor;
   $('np-cover').innerHTML=`<i class="fas ${currentPlaylist.icon}"></i>`;
+  updateFullPlayerUI();
   // 更新列表高亮
   $('listen-body').querySelectorAll('.listen-song-item').forEach((item,i)=>{
     item.classList.toggle('playing',i===index);
@@ -4498,12 +4596,60 @@ function playSong(index){
   updatePlayerUI();
 }
 
+function formatTime(sec){
+  if(!sec||isNaN(sec)) return '0:00';
+  const m=Math.floor(sec/60);
+  const s=Math.floor(sec%60);
+  return m+':'+(s<10?'0':'')+s;
+}
+
+function updateFullPlayerUI(){
+  if(!currentPlaylist||currentSongIndex<0) return;
+  const song=currentPlaylist.songs[currentSongIndex];
+  if(!song) return;
+  $('fp-title').textContent=song.title;
+  $('fp-artist').textContent=song.artist;
+  $('fp-cover').style.background=currentPlaylist.coverColor;
+  $('fp-cover').innerHTML=`<i class="fas ${currentPlaylist.icon}"></i>`;
+  $('fp-playlist-name').textContent=currentPlaylist.name;
+  // 显示歌曲配置的时长或音频实际时长
+  if(listenAudio&&listenAudio.duration&&!isNaN(listenAudio.duration)){
+    $('fp-duration').textContent=formatTime(listenAudio.duration);
+  }else if(song.duration){
+    $('fp-duration').textContent=song.duration;
+  }else{
+    $('fp-duration').textContent='0:00';
+  }
+  updateFullPlayerProgress();
+}
+
+function updateFullPlayerProgress(){
+  if(!listenAudio) return;
+  const cur=listenAudio.currentTime||0;
+  const total=listenAudio.duration||0;
+  const pct=total>0?(cur/total*100):0;
+  const filled=$('fp-progress-filled');
+  if(filled) filled.style.width=pct+'%';
+  const curEl=$('fp-current');
+  if(curEl) curEl.textContent=formatTime(cur);
+  if(total&&!isNaN(total)){
+    const durEl=$('fp-duration');
+    if(durEl) durEl.textContent=formatTime(total);
+  }
+}
+
 function updatePlayerUI(){
   const playIcon=$('np-play').querySelector('i');
+  const fpPlayIcon=$('fp-play').querySelector('i');
+  const fullplayer=$('listen-fullplayer');
   if(listenAudio&&listenAudio.paused){
     playIcon.className='fas fa-play';
+    if(fpPlayIcon) fpPlayIcon.className='fas fa-play';
+    if(fullplayer) fullplayer.classList.add('paused');
   }else{
     playIcon.className='fas fa-pause';
+    if(fpPlayIcon) fpPlayIcon.className='fas fa-pause';
+    if(fullplayer) fullplayer.classList.remove('paused');
   }
 }
 
@@ -4531,6 +4677,61 @@ $('np-next').onclick=()=>{
   if(!currentPlaylist) return;
   if(currentSongIndex<currentPlaylist.songs.length-1) playSong(currentSongIndex+1);
 };
+
+/* 全屏播放器 */
+$('listen-player').onclick=(e)=>{
+  if(e.target.closest('.np-controls')) return;
+  if(!currentPlaylist||currentSongIndex<0) return;
+  $('listen-fullplayer').classList.add('show');
+  updateFullPlayerUI();
+};
+$('fp-close').onclick=()=>{
+  $('listen-fullplayer').classList.remove('show');
+};
+$('fp-play').onclick=()=>{
+  if(!listenAudio) return;
+  if(listenAudio.paused){
+    listenAudio.play().catch(()=>toast('无法播放'));
+  }else{
+    listenAudio.pause();
+  }
+};
+$('fp-prev').onclick=()=>{
+  if(!currentPlaylist) return;
+  if(currentSongIndex>0) playSong(currentSongIndex-1);
+};
+$('fp-next').onclick=()=>{
+  if(!currentPlaylist) return;
+  if(currentSongIndex<currentPlaylist.songs.length-1) playSong(currentSongIndex+1);
+};
+
+/* 进度条拖动调节时间 */
+let isDraggingProgress=false;
+const fpProgressBar=$('fp-progress-bar');
+function seekToEvent(e){
+  if(!listenAudio||!listenAudio.duration||isNaN(listenAudio.duration)) return;
+  const rect=fpProgressBar.getBoundingClientRect();
+  const x=(e.touches?e.touches[0].clientX:e.clientX)-rect.left;
+  const pct=Math.max(0,Math.min(1,x/rect.width));
+  listenAudio.currentTime=pct*listenAudio.duration;
+  updateFullPlayerProgress();
+}
+fpProgressBar.addEventListener('mousedown',(e)=>{
+  isDraggingProgress=true;
+  seekToEvent(e);
+});
+fpProgressBar.addEventListener('touchstart',(e)=>{
+  isDraggingProgress=true;
+  seekToEvent(e);
+},{passive:true});
+document.addEventListener('mousemove',(e)=>{
+  if(isDraggingProgress) seekToEvent(e);
+});
+document.addEventListener('touchmove',(e)=>{
+  if(isDraggingProgress) seekToEvent(e);
+},{passive:true});
+document.addEventListener('mouseup',()=>{isDraggingProgress=false;});
+document.addEventListener('touchend',()=>{isDraggingProgress=false;});
 
 /* ============ 扫一扫 ============ */
 let scannerStream=null;
