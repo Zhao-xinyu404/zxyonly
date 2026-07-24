@@ -488,23 +488,26 @@
   }
   .listen-banner h2{font-size:22px;margin-bottom:4px;}
   .listen-banner p{font-size:13px;opacity:0.9;}
-  .listen-section{padding:16px;}
-  .listen-section-title{font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
-  .listen-playlists{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;-webkit-overflow-scrolling:touch;}
-  .listen-playlists::-webkit-scrollbar{display:none;}
-  .playlist-card{
-    flex-shrink:0;width:120px;cursor:pointer;
+  .listen-section{padding:16px 0;}
+  .listen-section-title{font-size:16px;font-weight:600;margin-bottom:8px;padding:0 16px;display:flex;align-items:center;gap:6px;}
+  .listen-playlists{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .playlist-row{
+    display:flex;align-items:center;gap:12px;
+    padding:12px 16px;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+    transition:background .15s;
   }
-  .playlist-cover{
-    width:120px;height:120px;border-radius:10px;
-    display:flex;align-items:center;justify-content:center;
-    font-size:40px;color:#fff;position:relative;overflow:hidden;
+  .playlist-row:hover{background:#f5f5f5;}
+  .playlist-row:active{background:#ebebeb;}
+  .playlist-row:last-child{border-bottom:none;}
+  .playlist-row .playlist-cover{
+    width:46px;height:46px;border-radius:8px;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;
   }
-  .playlist-card .playlist-name{
-    font-size:13px;margin-top:6px;font-weight:500;
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  }
-  .playlist-card .playlist-count{font-size:11px;color:var(--text-3);margin-top:2px;}
+  .playlist-row .playlist-info{flex:1;min-width:0;}
+  .playlist-row .playlist-name{font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .playlist-row .playlist-count{font-size:13px;color:var(--text-3);margin-top:2px;}
   .listen-song-list{padding:0 16px;}
   .listen-song-item{
     display:flex;align-items:center;gap:12px;
@@ -4344,11 +4347,38 @@ $('video-back').onclick=()=>{
 };
 
 /* ============ 听一听 ============ */
-const PLAYLISTS=[
+const PLAYLIST_CONFIG_URL = '';
+
+let PLAYLISTS=[
   {id:'mahanda',name:'马汉达歌单',coverColor:'#e74c3c',icon:'fa-fire',songs:[]},
   {id:'yuanhaochen',name:'袁浩宸歌单',coverColor:'#3498db',icon:'fa-bolt',songs:[]},
   {id:'liuyuduo',name:'刘煜铎歌单',coverColor:'#9b59b6',icon:'fa-star',songs:[]},
 ];
+
+async function loadPlaylistConfig(){
+  if(PLAYLIST_CONFIG_URL){
+    try{
+      const res=await fetch(PLAYLIST_CONFIG_URL,{timeout:10000});
+      const data=await res.json();
+      if(data.playlists&&Array.isArray(data.playlists)){
+        PLAYLISTS=data.playlists;
+        console.log('[INFO] 已从外部加载',PLAYLISTS.length,'个歌单');
+        return;
+      }
+    }catch(e){
+      console.error('[ERROR] 加载外部歌单配置失败:',e.message);
+    }
+  }
+  try{
+    const res=await api('/api/playlists','','GET',5000);
+    if(res.success&&res.playlists&&Array.isArray(res.playlists)){
+      PLAYLISTS=res.playlists;
+      console.log('[INFO] 已从后端加载',PLAYLISTS.length,'个歌单');
+    }
+  }catch(e){
+    console.error('[ERROR] 从后端加载歌单配置失败:',e.message);
+  }
+}
 
 let listenAudio=null;
 let currentPlaylist=null;
@@ -4363,12 +4393,15 @@ function renderListenHome(){
     <div class="listen-section-title"><i class="fas fa-list-music"></i> 推荐歌单</div>
     <div class="listen-playlists">`;
   for(const pl of PLAYLISTS){
-    html+=`<div class="playlist-card" data-id="${pl.id}">
+    html+=`<div class="playlist-row" data-id="${pl.id}">
       <div class="playlist-cover" style="background:${pl.coverColor};">
         <i class="fas ${pl.icon}"></i>
       </div>
-      <div class="playlist-name">${escapeHTML(pl.name)}</div>
-      <div class="playlist-count">${pl.songs.length}首</div>
+      <div class="playlist-info">
+        <div class="playlist-name">${escapeHTML(pl.name)}</div>
+        <div class="playlist-count">${pl.songs.length}首歌曲</div>
+      </div>
+      <i class="fas fa-chevron-right" style="color:var(--text-3);font-size:14px;"></i>
     </div>`;
   }
   html+=`</div></div>
@@ -4377,7 +4410,7 @@ function renderListenHome(){
     <p>选择一个歌单开始播放</p>
   </div>`;
   $('listen-body').innerHTML=html;
-  $('listen-body').querySelectorAll('.playlist-card').forEach(card=>{
+  $('listen-body').querySelectorAll('.playlist-row').forEach(card=>{
     card.onclick=()=>openPlaylist(card.dataset.id);
   });
 }
@@ -4464,7 +4497,8 @@ function updatePlayerUI(){
   }
 }
 
-$('listen-entry').onclick=()=>{
+$('listen-entry').onclick=async()=>{
+  await loadPlaylistConfig();
   renderListenHome();
   $('listen-view').classList.add('show');
 };

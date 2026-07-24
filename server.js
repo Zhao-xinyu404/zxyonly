@@ -995,6 +995,43 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, status);
   }
 
+  /* ====== 歌单配置 ====== */
+  if (req.method === 'GET' && url === '/api/playlists') {
+    const playlists = [
+      { id: 'mahanda', name: '马汉达歌单', coverColor: '#e74c3c', icon: 'fa-fire', songs: [] },
+      { id: 'yuanhaochen', name: '袁浩宸歌单', coverColor: '#3498db', icon: 'fa-bolt', songs: [] },
+      { id: 'liuyuduo', name: '刘煜铎歌单', coverColor: '#9b59b6', icon: 'fa-star', songs: [] },
+    ];
+    if (DATA_DIR) {
+      const playlistFile = path.join(DATA_DIR, 'playlists.json');
+      if (fs.existsSync(playlistFile)) {
+        try {
+          const saved = JSON.parse(fs.readFileSync(playlistFile, 'utf8'));
+          if (saved.playlists && Array.isArray(saved.playlists)) {
+            saved.playlists.forEach(p => {
+              const existing = playlists.find(x => x.id === p.id);
+              if (existing) Object.assign(existing, p);
+              else playlists.push(p);
+            });
+          }
+        } catch (e) {}
+      }
+    }
+    return send(res, 200, { success: true, playlists });
+  }
+
+  if (req.method === 'POST' && url === '/api/playlists') {
+    if (!DATA_DIR) return send(res, 200, { success: false, msg: '数据目录不可用' });
+    const body = await readBody(req);
+    const playlistFile = path.join(DATA_DIR, 'playlists.json');
+    try {
+      fs.writeFileSync(playlistFile, JSON.stringify({ playlists: body.playlists || [], updatedAt: Date.now() }, null, 2));
+      return send(res, 200, { success: true });
+    } catch (e) {
+      return send(res, 200, { success: false, msg: e.message });
+    }
+  }
+
   /* ====== 注册 ====== */
   if (req.method === 'POST' && url === '/api/register') {
     const body = await readBody(req);
