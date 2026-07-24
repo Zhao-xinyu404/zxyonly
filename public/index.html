@@ -4370,7 +4370,7 @@ async function loadPlaylistConfig(){
     }
   }
   try{
-    const res=await api('/api/playlists','','GET',5000);
+    const res=await api('/api/playlists?_t=' + Date.now(), '', 'GET', 5000);
     if(res.success&&res.playlists&&Array.isArray(res.playlists)){
       PLAYLISTS=res.playlists;
       console.log('[INFO] 已从后端加载',PLAYLISTS.length,'个歌单');
