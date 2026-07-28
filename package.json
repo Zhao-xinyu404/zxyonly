@@ -9,6 +9,7 @@
     "dev": "node server.js"
   },
   "dependencies": {
+    "express": "^5.2.1",
     "sharp": "^0.33.5"
   }
 }

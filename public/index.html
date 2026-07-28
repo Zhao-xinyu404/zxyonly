@@ -2380,6 +2380,7 @@
         <button id="np-next"><i class="fas fa-forward-step"></i></button>
       </div>
     </div>
+    <audio id="listen-audio" style="display:none;"></audio>
 
     <!-- 全屏播放器 -->
     <div class="listen-fullplayer" id="listen-fullplayer">
@@ -2623,7 +2624,7 @@
 
 <script>
 /* ============ 后端地址配置 ============ */
-const API_BASE = 'https://wuliao-chat.onrender.com';
+const API_BASE = window.location.origin;
 
 /* ============ API 调用 ============ */
 async function api(url, data, method='POST', timeoutMs=10000){
@@ -4480,6 +4481,36 @@ let listenAudio=null;
 let currentPlaylist=null;
 let currentSongIndex=-1;
 
+function initAudioElement(){
+  if(listenAudio) return listenAudio;
+  listenAudio = document.getElementById('listen-audio');
+  if(!listenAudio){
+    listenAudio = new Audio();
+  }
+  listenAudio.preload='auto';
+  listenAudio.addEventListener('ended',()=>{
+    if(currentPlaylist&&currentSongIndex<currentPlaylist.songs.length-1){
+      playSong(currentSongIndex+1);
+    }
+  });
+  listenAudio.addEventListener('play',updatePlayerUI);
+  listenAudio.addEventListener('pause',updatePlayerUI);
+  listenAudio.addEventListener('loadedmetadata',updateFullPlayerUI);
+  listenAudio.addEventListener('timeupdate',()=>{
+    if(currentPlaylist&&currentSongIndex>=0){
+      const song=currentPlaylist.songs[currentSongIndex];
+      const cur=listenAudio.currentTime;
+      const total=song.duration;
+      updateFullPlayerProgress();
+    }
+  });
+  listenAudio.addEventListener('error',(e)=>{
+    console.error('[ERROR] Audio play error:', e);
+    toast('音频播放失败：' + (e.target.error?.message || '未知错误'));
+  });
+  return listenAudio;
+}
+
 function renderListenHome(){
   let html=`<div class="listen-banner">
     <h2><i class="fas fa-headphones"></i> 听一听</h2>
@@ -4549,41 +4580,16 @@ function playSong(index){
   if(!currentPlaylist||index<0||index>=currentPlaylist.songs.length) return;
   currentSongIndex=index;
   const song=currentPlaylist.songs[index];
-  if(!listenAudio){
-    listenAudio=new Audio();
-    listenAudio.crossOrigin='anonymous';
-    listenAudio.addEventListener('ended',()=>{
-      if(currentPlaylist&&currentSongIndex<currentPlaylist.songs.length-1){
-        playSong(currentSongIndex+1);
-      }
-    });
-    listenAudio.addEventListener('play',updatePlayerUI);
-    listenAudio.addEventListener('pause',updatePlayerUI);
-    listenAudio.addEventListener('loadedmetadata',updateFullPlayerUI);
-    listenAudio.addEventListener('timeupdate',()=>{
-      if(currentPlaylist&&currentSongIndex>=0){
-        const song=currentPlaylist.songs[currentSongIndex];
-        const cur=listenAudio.currentTime;
-        const total=song.duration;
-        updateFullPlayerProgress();
-      }
-    });
-    listenAudio.addEventListener('error',(e)=>{
-      console.error('[ERROR] Audio play error:', e);
-      toast('音频播放失败：' + (e.target.error?.message || '未知错误'));
-    });
-  }
+  initAudioElement();
+  listenAudio.pause();
+  listenAudio.currentTime=0;
   listenAudio.src=getAudioUrl(song.url);
-  listenAudio.play().catch(()=>{
-    toast('无法播放该歌曲，可能需要联网');
-  });
   $('listen-player').style.display='flex';
   $('np-title').textContent=song.title;
   $('np-artist').textContent=song.artist;
   $('np-cover').style.background=currentPlaylist.coverColor;
   $('np-cover').innerHTML=`<i class="fas ${currentPlaylist.icon}"></i>`;
   updateFullPlayerUI();
-  // 更新列表高亮
   $('listen-body').querySelectorAll('.listen-song-item').forEach((item,i)=>{
     item.classList.toggle('playing',i===index);
     const idx=item.querySelector('.song-index');
@@ -4663,8 +4669,17 @@ $('listen-back').onclick=()=>{
 };
 $('np-play').onclick=()=>{
   if(!listenAudio) return;
+  console.log('[PLAY BTN] Clicked, paused=', listenAudio.paused, 'readyState=', listenAudio.readyState);
   if(listenAudio.paused){
-    listenAudio.play().catch(()=>toast('无法播放'));
+    var p = listenAudio.play();
+    console.log('[PLAY BTN] play() returned:', typeof p);
+    if (p !== undefined && typeof p.then === 'function') {
+      p.then(() => console.log('[PLAY BTN] Play succeeded!'))
+       .catch(err => {
+         console.log('[PLAY BTN] Play failed:', err?.message || err);
+         toast('无法播放：' + (err?.message || '未知错误'));
+       });
+    }
   }else{
     listenAudio.pause();
   }

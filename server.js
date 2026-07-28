@@ -1033,7 +1033,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   /* ====== 音频代理 ====== */
-  if (req.method === 'GET' && url.startsWith('/api/audio/proxy/')) {
+  if ((req.method === 'GET' || req.method === 'HEAD') && url.startsWith('/api/audio/proxy/')) {
     const encodedUrl = url.slice('/api/audio/proxy/'.length);
     let targetUrl;
     try {
@@ -1045,51 +1045,153 @@ const server = http.createServer(async (req, res) => {
     const isHttps = targetUrl.startsWith('https://');
     const mod = isHttps ? https : http;
     const target = new URL(targetUrl);
+    const encodedPath = encodeURI(decodeURI(target.pathname + target.search));
+    const proxyUrl = isHttps ? process.env.https_proxy || process.env.HTTPS_PROXY : process.env.http_proxy || process.env.HTTP_PROXY;
 
-    const opts = {
-      hostname: target.hostname,
-      port: target.port || (isHttps ? 443 : 80),
-      path: target.pathname + target.search,
-      timeout: 60000
-    };
-
+    const clientRange = req.headers['range'];
     let headersSent = false;
 
-    const proxyReq = mod.get(opts, (proxyRes) => {
-      if (proxyRes.statusCode !== 200) {
+    const forwardResponse = (proxyRes) => {
+      const statusCode = proxyRes.statusCode;
+
+      if (statusCode !== 200 && statusCode !== 206) {
         if (!headersSent) {
           headersSent = true;
-          send(res, proxyRes.statusCode, { error: 'Audio server error' });
+          send(res, statusCode, { error: 'Audio server error' });
         }
         return;
       }
 
       headersSent = true;
-      res.writeHead(200, {
+
+      const responseHeaders = {
         'Content-Type': proxyRes.headers['content-type'] || 'audio/mpeg',
-        'Content-Length': proxyRes.headers['content-length'],
         'Cache-Control': 'public, max-age=86400',
-        'Access-Control-Allow-Origin': '*'
-      });
+        'Access-Control-Allow-Origin': '*',
+        'Accept-Ranges': 'bytes'
+      };
 
-      proxyRes.pipe(res);
-    });
+      if (statusCode === 206) {
+        responseHeaders['Content-Range'] = proxyRes.headers['content-range'];
+        responseHeaders['Content-Length'] = proxyRes.headers['content-length'];
+        responseHeaders['Connection'] = 'keep-alive';
+      } else {
+        responseHeaders['Content-Length'] = proxyRes.headers['content-length'];
+        if (clientRange) {
+          responseHeaders['Content-Range'] = `bytes 0-${parseInt(proxyRes.headers['content-length']) - 1}/${proxyRes.headers['content-length']}`;
+          res.writeHead(206, responseHeaders);
+        } else {
+          res.writeHead(200, responseHeaders);
+        }
+      }
 
-    proxyReq.on('error', (e) => {
+      if (req.method === 'HEAD') {
+        res.end();
+      } else {
+        proxyRes.pipe(res);
+      }
+    };
+
+    const handleError = (e) => {
       console.error('[ERROR] Audio proxy error:', e.message);
       if (!headersSent) {
         headersSent = true;
         send(res, 500, { error: 'Audio proxy error: ' + e.message });
       }
-    });
+    };
 
-    proxyReq.setTimeout(60000, () => {
-      proxyReq.destroy();
+    const handleTimeout = () => {
       if (!headersSent) {
         headersSent = true;
         send(res, 504, { error: 'Audio proxy timeout' });
       }
-    });
+    };
+
+    const buildRequestHeaders = () => {
+      const headers = {
+        'User-Agent': 'Mozilla/5.0',
+        'Accept': '*/*',
+        'Connection': 'keep-alive'
+      };
+      if (clientRange) {
+        headers['Range'] = clientRange;
+      }
+      return headers;
+    };
+
+    if (proxyUrl) {
+      const proxy = new URL(proxyUrl);
+      const proxyMod = proxy.protocol === 'https:' ? https : http;
+
+      if (!isHttps) {
+        // HTTP target: use absolute URL format for HTTP proxy
+        const encodedTargetUrl = encodeURI(decodeURI(targetUrl));
+        const proxyReq = proxyMod.request({
+          method: req.method,
+          hostname: proxy.hostname,
+          port: proxy.port || (proxy.protocol === 'https:' ? 443 : 80),
+          path: encodedTargetUrl,
+          timeout: 120000,
+          headers: {
+            'Host': target.hostname,
+            ...buildRequestHeaders()
+          }
+        }, forwardResponse);
+        proxyReq.on('error', handleError);
+        proxyReq.setTimeout(120000, () => { proxyReq.destroy(); handleTimeout(); });
+        proxyReq.end();
+      } else {
+        // HTTPS target: use CONNECT tunnel
+        const connectOpts = {
+          method: 'CONNECT',
+          hostname: proxy.hostname,
+          port: proxy.port || (proxy.protocol === 'https:' ? 443 : 80),
+          path: `${target.hostname}:${target.port || 443}`,
+          headers: {}
+        };
+
+        const connectReq = proxyMod.request(connectOpts);
+        connectReq.on('connect', (connRes, socket) => {
+          if (connRes.statusCode !== 200) {
+            socket.destroy();
+            if (!headersSent) {
+              headersSent = true;
+              send(res, 502, { error: 'Proxy connect failed' });
+            }
+            return;
+          }
+
+          const tunnelOpts = {
+            method: req.method,
+            hostname: target.hostname,
+            port: target.port || 443,
+            path: encodedPath,
+            socket,
+            timeout: 120000,
+            headers: buildRequestHeaders()
+          };
+
+          const tunnelReq = https.request(tunnelOpts, forwardResponse);
+          tunnelReq.on('error', handleError);
+          tunnelReq.setTimeout(120000, handleTimeout);
+          tunnelReq.end();
+        });
+        connectReq.on('error', handleError);
+        connectReq.end();
+      }
+    } else {
+      const opts = {
+        hostname: target.hostname,
+        port: target.port || (isHttps ? 443 : 80),
+        path: encodedPath,
+        timeout: 120000,
+        headers: buildRequestHeaders()
+      };
+
+      const proxyReq = mod.get(opts, forwardResponse);
+      proxyReq.on('error', handleError);
+      proxyReq.setTimeout(120000, () => { proxyReq.destroy(); handleTimeout(); });
+    }
 
     return;
   }
