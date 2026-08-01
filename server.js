@@ -998,9 +998,34 @@ const server = http.createServer(async (req, res) => {
   /* ====== 歌单配置 ====== */
   if (req.method === 'GET' && url === '/api/playlists') {
     const playlists = [
-      { id: 'mahanda', name: '马汉达歌单', coverColor: '#e74c3c', icon: 'fa-fire', songs: [] },
-      { id: 'yuanhaochen', name: '袁浩宸歌单', coverColor: '#3498db', icon: 'fa-bolt', songs: [] },
-      { id: 'liuyuduo', name: '刘煜铎歌单', coverColor: '#9b59b6', icon: 'fa-star', songs: [] },
+      { id: 'mahanda', name: '马汉达歌单', coverColor: '#e74c3c', icon: 'fa-fire', songs: [
+        { title: '海阔天空', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/海阔天空-达.mp3', duration: '4:23' },
+        { title: '光辉岁月', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/光辉岁月-达.mp3', duration: '5:03' },
+        { title: '真的爱你', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/真的爱你-达.mp3', duration: '4:25' },
+        { title: '不再犹豫', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/不再犹豫-达.mp3', duration: '4:10' },
+        { title: '灰色轨迹', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/灰色轨迹-达.mp3', duration: '4:45' }
+      ]},
+      { id: 'yuanhaochen', name: '袁浩宸歌单', coverColor: '#3498db', icon: 'fa-bolt', songs: [
+        { title: '稻香', artist: '周杰伦', url: 'http://a6593ae2.xy.proaa.top/周杰伦/稻香-周杰伦.mp3', duration: '3:43' },
+        { title: '青花瓷', artist: '周杰伦', url: 'http://a6593ae2.xy.proaa.top/周杰伦/青花瓷-周杰伦.mp3', duration: '3:58' },
+        { title: '菊花台', artist: '周杰伦', url: 'http://a6593ae2.xy.proaa.top/周杰伦/菊花台-周杰伦.mp3', duration: '4:55' },
+        { title: '东风破', artist: '周杰伦', url: 'http://a6593ae2.xy.proaa.top/周杰伦/东风破-周杰伦.mp3', duration: '5:14' },
+        { title: '告白气球', artist: '周杰伦', url: 'http://a6593ae2.xy.proaa.top/周杰伦/告白气球-周杰伦.mp3', duration: '3:35' }
+      ]},
+      { id: 'liuyuduo', name: '刘煜铎歌单', coverColor: '#9b59b6', icon: 'fa-star', songs: [
+        { title: '一生回味一面', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/一生回味一面-鸡蛋.mp3', duration: '2:36' },
+        { title: '不如见一面', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/不如见一面-鸡蛋.mp3', duration: '3:44' },
+        { title: '你笑起来真好看', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/你笑起来真好看-鸡蛋.mp3', duration: '2:14' },
+        { title: '如果可以', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/如果可以-鸡蛋.mp3', duration: '4:34' },
+        { title: '寂寞沙洲冷', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/寂寞沙洲冷-鸡蛋.mp3', duration: '4:36' },
+        { title: '影子说', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/影子说-鸡蛋.mp3', duration: '3:12' },
+        { title: '最后一页', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/最后一页-鸡蛋.mp3', duration: '4:46' },
+        { title: '火红的萨日朗', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/火红的萨日朗-鸡蛋.mp3', duration: '3:58' },
+        { title: '离别开出花', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/离别开出花-鸡蛋.mp3', duration: '3:06' },
+        { title: '虞兮叹', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/虞兮叹-鸡蛋.mp3', duration: '3:32' },
+        { title: '跳楼机', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/跳楼机-鸡蛋.mp3', duration: '3:22' },
+        { title: '辞·九门回忆', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/辞·九门回忆-鸡蛋.mp3', duration: '3:00' }
+      ]},
     ];
     if (DATA_DIR) {
       const playlistFile = path.join(DATA_DIR, 'playlists.json');
