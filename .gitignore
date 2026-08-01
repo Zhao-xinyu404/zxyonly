@@ -3,3 +3,9 @@ data/
 .env
 .DS_Store
 *.log
+# Android 构建产物与本地配置
+android-app/build/
+android-app/app/build/
+android-app/.gradle/
+android-app/local.properties
+*.apk
