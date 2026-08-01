@@ -1005,13 +1005,7 @@ const server = http.createServer(async (req, res) => {
         { title: '不再犹豫', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/不再犹豫-达.mp3', duration: '4:10' },
         { title: '灰色轨迹', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/灰色轨迹-达.mp3', duration: '4:45' }
       ]},
-      { id: 'yuanhaochen', name: '袁浩宸歌单', coverColor: '#3498db', icon: 'fa-bolt', songs: [
-        { title: '稻香', artist: '周杰伦', url: 'http://a6593ae2.xy.proaa.top/周杰伦/稻香-周杰伦.mp3', duration: '3:43' },
-        { title: '青花瓷', artist: '周杰伦', url: 'http://a6593ae2.xy.proaa.top/周杰伦/青花瓷-周杰伦.mp3', duration: '3:58' },
-        { title: '菊花台', artist: '周杰伦', url: 'http://a6593ae2.xy.proaa.top/周杰伦/菊花台-周杰伦.mp3', duration: '4:55' },
-        { title: '东风破', artist: '周杰伦', url: 'http://a6593ae2.xy.proaa.top/周杰伦/东风破-周杰伦.mp3', duration: '5:14' },
-        { title: '告白气球', artist: '周杰伦', url: 'http://a6593ae2.xy.proaa.top/周杰伦/告白气球-周杰伦.mp3', duration: '3:35' }
-      ]},
+      { id: 'yuanhaochen', name: '袁浩宸歌单', coverColor: '#3498db', icon: 'fa-bolt', songs: [] },
       { id: 'liuyuduo', name: '刘煜铎歌单', coverColor: '#9b59b6', icon: 'fa-star', songs: [
         { title: '一生回味一面', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/一生回味一面-鸡蛋.mp3', duration: '2:36' },
         { title: '不如见一面', artist: '鸡蛋', url: 'http://a6593ae2.xy.proaa.top/鸡蛋/不如见一面-鸡蛋.mp3', duration: '3:44' },
@@ -1042,6 +1036,7 @@ const server = http.createServer(async (req, res) => {
         } catch (e) {}
       }
     }
+    res.setHeader('Cache-Control', 'public, max-age=3600');
     return send(res, 200, { success: true, playlists });
   }
 
@@ -1074,6 +1069,8 @@ const server = http.createServer(async (req, res) => {
     const proxyUrl = isHttps ? process.env.https_proxy || process.env.HTTPS_PROXY : process.env.http_proxy || process.env.HTTP_PROXY;
 
     const clientRange = req.headers['range'];
+    const clientEtag = req.headers['if-none-match'];
+    const clientSince = req.headers['if-modified-since'];
     let headersSent = false;
 
     const forwardResponse = (proxyRes) => {
@@ -1087,23 +1084,57 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      const contentLength = proxyRes.headers['content-length'];
+      const lastModified = proxyRes.headers['last-modified'];
+      const etag = proxyRes.headers['etag'] || (contentLength ? `"${contentLength}-${target.pathname.length}"` : null);
+
+      if (clientEtag && etag && clientEtag === etag) {
+        headersSent = true;
+        res.writeHead(304, {
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'public, max-age=31536000, immutable'
+        });
+        res.end();
+        proxyRes.destroy();
+        return;
+      }
+
+      if (clientSince && lastModified && new Date(lastModified) <= new Date(clientSince)) {
+        headersSent = true;
+        res.writeHead(304, {
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'public, max-age=31536000, immutable'
+        });
+        res.end();
+        proxyRes.destroy();
+        return;
+      }
+
       headersSent = true;
 
       const responseHeaders = {
         'Content-Type': proxyRes.headers['content-type'] || 'audio/mpeg',
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': 'public, max-age=31536000, immutable',
         'Access-Control-Allow-Origin': '*',
-        'Accept-Ranges': 'bytes'
+        'Accept-Ranges': 'bytes',
+        'X-Content-Type-Options': 'nosniff'
       };
+
+      if (etag) responseHeaders['ETag'] = etag;
+      if (lastModified) responseHeaders['Last-Modified'] = lastModified;
 
       if (statusCode === 206) {
         responseHeaders['Content-Range'] = proxyRes.headers['content-range'];
         responseHeaders['Content-Length'] = proxyRes.headers['content-length'];
         responseHeaders['Connection'] = 'keep-alive';
+        if (etag) responseHeaders['ETag'] = etag;
+        if (lastModified) responseHeaders['Last-Modified'] = lastModified;
+        res.writeHead(206, responseHeaders);
       } else {
-        responseHeaders['Content-Length'] = proxyRes.headers['content-length'];
+        responseHeaders['Content-Length'] = contentLength || '0';
         if (clientRange) {
-          responseHeaders['Content-Range'] = `bytes 0-${parseInt(proxyRes.headers['content-length']) - 1}/${proxyRes.headers['content-length']}`;
+          responseHeaders['Content-Range'] = `bytes 0-${parseInt(contentLength) - 1}/${contentLength}`;
+          responseHeaders['Connection'] = 'keep-alive';
           res.writeHead(206, responseHeaders);
         } else {
           res.writeHead(200, responseHeaders);
@@ -1141,32 +1172,38 @@ const server = http.createServer(async (req, res) => {
       if (clientRange) {
         headers['Range'] = clientRange;
       }
+      if (clientEtag) {
+        headers['If-None-Match'] = clientEtag;
+      }
+      if (clientSince) {
+        headers['If-Modified-Since'] = clientSince;
+      }
       return headers;
     };
+
+    const TIMEOUT = 30000;
 
     if (proxyUrl) {
       const proxy = new URL(proxyUrl);
       const proxyMod = proxy.protocol === 'https:' ? https : http;
 
       if (!isHttps) {
-        // HTTP target: use absolute URL format for HTTP proxy
         const encodedTargetUrl = encodeURI(decodeURI(targetUrl));
         const proxyReq = proxyMod.request({
           method: req.method,
           hostname: proxy.hostname,
           port: proxy.port || (proxy.protocol === 'https:' ? 443 : 80),
           path: encodedTargetUrl,
-          timeout: 120000,
+          timeout: TIMEOUT,
           headers: {
             'Host': target.hostname,
             ...buildRequestHeaders()
           }
         }, forwardResponse);
         proxyReq.on('error', handleError);
-        proxyReq.setTimeout(120000, () => { proxyReq.destroy(); handleTimeout(); });
+        proxyReq.setTimeout(TIMEOUT, () => { proxyReq.destroy(); handleTimeout(); });
         proxyReq.end();
       } else {
-        // HTTPS target: use CONNECT tunnel
         const connectOpts = {
           method: 'CONNECT',
           hostname: proxy.hostname,
@@ -1192,13 +1229,13 @@ const server = http.createServer(async (req, res) => {
             port: target.port || 443,
             path: encodedPath,
             socket,
-            timeout: 120000,
+            timeout: TIMEOUT,
             headers: buildRequestHeaders()
           };
 
           const tunnelReq = https.request(tunnelOpts, forwardResponse);
           tunnelReq.on('error', handleError);
-          tunnelReq.setTimeout(120000, handleTimeout);
+          tunnelReq.setTimeout(TIMEOUT, handleTimeout);
           tunnelReq.end();
         });
         connectReq.on('error', handleError);
@@ -1209,13 +1246,13 @@ const server = http.createServer(async (req, res) => {
         hostname: target.hostname,
         port: target.port || (isHttps ? 443 : 80),
         path: encodedPath,
-        timeout: 120000,
+        timeout: TIMEOUT,
         headers: buildRequestHeaders()
       };
 
       const proxyReq = mod.get(opts, forwardResponse);
       proxyReq.on('error', handleError);
-      proxyReq.setTimeout(120000, () => { proxyReq.destroy(); handleTimeout(); });
+      proxyReq.setTimeout(TIMEOUT, () => { proxyReq.destroy(); handleTimeout(); });
     }
 
     return;

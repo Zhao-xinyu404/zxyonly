@@ -4487,7 +4487,7 @@ function initAudioElement(){
   if(!listenAudio){
     listenAudio = new Audio();
   }
-  listenAudio.preload='auto';
+  listenAudio.preload='metadata';
   listenAudio.addEventListener('ended',()=>{
     if(currentPlaylist&&currentSongIndex<currentPlaylist.songs.length-1){
       playSong(currentSongIndex+1);
