@@ -999,11 +999,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && url === '/api/playlists') {
     const playlists = [
       { id: 'mahanda', name: '马汉达歌单', coverColor: '#e74c3c', icon: 'fa-fire', songs: [
-        { title: '海阔天空', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/海阔天空-达.mp3', duration: '4:23' },
-        { title: '光辉岁月', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/光辉岁月-达.mp3', duration: '5:03' },
-        { title: '真的爱你', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/真的爱你-达.mp3', duration: '4:25' },
-        { title: '不再犹豫', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/不再犹豫-达.mp3', duration: '4:10' },
-        { title: '灰色轨迹', artist: '达', url: 'http://a6593ae2.xy.proaa.top/达/灰色轨迹-达.mp3', duration: '4:45' }
+        { title: '海阔天空', artist: '马汉达', url: 'http://a6593ae2.xy.proaa.top/达/海阔天空-达.mp3', duration: '4:23' }
       ]},
       { id: 'yuanhaochen', name: '袁浩宸歌单', coverColor: '#3498db', icon: 'fa-bolt', songs: [] },
       { id: 'liuyuduo', name: '刘煜铎歌单', coverColor: '#9b59b6', icon: 'fa-star', songs: [

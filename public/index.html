@@ -2647,6 +2647,7 @@ async function api(url, data, method='POST', timeoutMs=10000){
 /* ============ 连接状态检测 ============ */
 let connectionStatus = {
   serverOnline: false,
+  supabaseEnabled: false,
   supabaseOnline: false,
   supabaseLatency: null,
   lastCheck: 0
@@ -2660,6 +2661,7 @@ async function checkConnectionStatus(){
     const latency = Date.now() - startTime;
     
     connectionStatus.serverOnline = res.ok === true;
+    connectionStatus.supabaseEnabled = res.supabase?.enabled === true;
     connectionStatus.supabaseOnline = res.supabase?.connected === true;
     connectionStatus.supabaseLatency = res.supabase?.latency;
     connectionStatus.lastCheck = Date.now();
@@ -2683,7 +2685,7 @@ function updateConnectionIndicator(){
     indicator.className = 'connection-indicator online';
     indicator.innerHTML = '<i class="fas fa-check-circle"></i>';
     indicator.title = '后端在线';
-    if(!connectionStatus.supabaseOnline){
+    if(connectionStatus.supabaseEnabled && !connectionStatus.supabaseOnline){
       indicator.className = 'connection-indicator warning';
       indicator.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
       indicator.title = '后端在线，数据库离线';
