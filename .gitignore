@@ -8,4 +8,6 @@ android-app/build/
 android-app/app/build/
 android-app/.gradle/
 android-app/local.properties
-*.apk
+# 忽略构建产物中的 APK，但允许根目录发布的 APK
+android-app/**/*.apk
+!WuliaoChat-v*.apk

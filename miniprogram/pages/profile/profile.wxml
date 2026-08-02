@@ -1,0 +1,27 @@
+<!-- pages/profile/profile.wxml -->
+<view class="profile-page" wx:if="{{user}}">
+  <view class="header">
+    <view class="avatar">{{(user.nickname || user.username)[0]}}</view>
+    <view class="user-info">
+      <view class="nickname">{{user.nickname || user.username}}</view>
+      <view class="username text-muted">无聊号: {{user.username}}</view>
+    </view>
+  </view>
+
+  <view class="menu">
+    <view class="menu-item">
+      <text>邮箱</text>
+      <text class="text-muted">{{user.email || '未设置'}}</text>
+    </view>
+    <view class="menu-item">
+      <text>个性签名</text>
+      <text class="text-muted">{{user.bio || '这个人很懒'}}</text>
+    </view>
+    <view class="menu-item">
+      <text>注册时间</text>
+      <text class="text-muted">{{user.createdAt ? user.createdAt : '未知'}}</text>
+    </view>
+  </view>
+
+  <view class="logout-btn" bindtap="onLogout">退出登录</view>
+</view>

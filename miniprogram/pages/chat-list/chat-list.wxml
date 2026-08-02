@@ -1,0 +1,23 @@
+<!-- pages/chat-list/chat-list.wxml -->
+<view class="chat-list">
+  <block wx:if="{{friends.length > 0}}">
+    <view class="chat-item" wx:for="{{friends}}" wx:key="username"
+          data-username="{{item.username}}" data-nickname="{{item.nickname}}"
+          bindtap="onTapFriend">
+      <view class="avatar" style="background: {{item.avatarColor || '#07c160'}}">
+        {{(item.nickname || item.username)[0]}}
+      </view>
+      <view class="info">
+        <view class="name">{{item.nickname || item.username}}</view>
+        <view class="bio text-muted">{{item.bio || '这个人很懒'}}</view>
+      </view>
+      <view class="badge" wx:if="{{unreadMap[item.username] > 0}}">
+        {{unreadMap[item.username]}}
+      </view>
+    </view>
+  </block>
+
+  <view class="empty" wx:if="{{!loading && friends.length === 0}}">
+    <text class="text-muted">还没有好友，去网页版添加好友吧</text>
+  </view>
+</view>

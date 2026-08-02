@@ -1,0 +1,48 @@
+<!-- pages/music/music.wxml -->
+<view class="music-page">
+  <!-- 歌单列表（横向滚动） -->
+  <scroll-view class="playlist-tabs" scroll-x>
+    <view class="tab {{currentPlaylistIndex === index ? 'active' : ''}}"
+          wx:for="{{playlists}}" wx:key="id"
+          data-index="{{index}}" bindtap="selectPlaylist">
+      <view class="tab-cover" style="background: {{item.coverColor || '#07c160'}}">
+        <text class="tab-name">{{item.name}}</text>
+      </view>
+    </view>
+  </scroll-view>
+
+  <!-- 歌曲列表 -->
+  <scroll-view class="song-list" scroll-y>
+    <view class="song-item {{currentIndex === index ? 'playing' : ''}}"
+          wx:for="{{songs}}" wx:key="index"
+          data-index="{{index}}" bindtap="onPlaySong">
+      <view class="song-index">
+        <text wx:if="{{currentIndex === index && isPlaying}}" class="playing-icon">♪</text>
+        <text wx:else>{{index + 1}}</text>
+      </view>
+      <view class="song-info">
+        <view class="song-title">{{item.title}}</view>
+        <view class="song-artist text-muted">{{item.artist}}</view>
+      </view>
+      <view class="song-duration text-muted">{{item.duration}}</view>
+    </view>
+    <view class="empty text-muted" wx:if="{{songs.length === 0}}">
+      该歌单暂无歌曲
+    </view>
+  </scroll-view>
+
+  <!-- 底部播放控制条 -->
+  <view class="player-bar" wx:if="{{playingSong}}">
+    <view class="player-info">
+      <view class="player-title">{{playingSong.title}}</view>
+      <view class="player-artist text-muted">{{playingSong.artist}}</view>
+    </view>
+    <view class="player-controls">
+      <view class="ctrl-btn" bindtap="onPrev">上一首</view>
+      <view class="ctrl-btn play-btn" bindtap="onTogglePlay">
+        {{isPlaying ? '暂停' : '播放'}}
+      </view>
+      <view class="ctrl-btn" bindtap="onNext">下一首</view>
+    </view>
+  </view>
+</view>

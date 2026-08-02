@@ -1,0 +1,25 @@
+<!-- pages/login/login.wxml -->
+<view class="login-page">
+  <view class="logo">
+    <view class="logo-icon">聊</view>
+    <text class="app-name">无聊Chat</text>
+  </view>
+
+  <view class="form">
+    <input class="input" placeholder="无聊号" data-field="username" value="{{username}}" />
+    <input class="input" placeholder="密码" password="true" data-field="password" value="{{password}}" />
+
+    <block wx:if="{{isRegister}}">
+      <input class="input" placeholder="昵称" data-field="nickname" value="{{nickname}}" />
+      <input class="input" placeholder="邮箱（选填）" data-field="email" value="{{email}}" />
+    </block>
+
+    <button class="btn-primary" bindtap="handleSubmit" loading="{{loading}}" disabled="{{loading}}">
+      {{isRegister ? '注册' : '登录'}}
+    </button>
+
+    <view class="toggle" bindtap="toggleRegister">
+      {{isRegister ? '已有账号？去登录' : '没有账号？去注册'}}
+    </view>
+  </view>
+</view>

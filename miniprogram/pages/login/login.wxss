@@ -1,0 +1,47 @@
+/* pages/login/login.wxss */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 60rpx;
+  padding-top: 160rpx;
+}
+
+.logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 80rpx;
+}
+
+.logo-icon {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 28rpx;
+  background: #07c160;
+  color: #fff;
+  font-size: 72rpx;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-name {
+  margin-top: 24rpx;
+  font-size: 40rpx;
+  font-weight: 600;
+  color: #333;
+}
+
+.form {
+  width: 100%;
+}
+
+.toggle {
+  text-align: center;
+  margin-top: 30rpx;
+  color: #07c160;
+  font-size: 28rpx;
+}
