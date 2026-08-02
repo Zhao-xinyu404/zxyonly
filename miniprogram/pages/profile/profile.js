@@ -3,7 +3,12 @@ const app = getApp();
 
 Page({
   data: {
-    user: null
+    user: null,
+    // APP 下载地址（蓝奏云）
+    appDownload: {
+      url: 'https://wwats.lanzouu.com/b01eun0h0h',
+      password: '6gmg'
+    }
   },
 
   onShow() {
@@ -19,6 +24,37 @@ Page({
         if (res.confirm) {
           app.logout();
         }
+      }
+    });
+  },
+
+  // APP 下载：弹出蓝奏云链接与密码，并提供复制
+  onDownloadApp() {
+    const { url, password } = this.data.appDownload;
+    wx.showModal({
+      title: '下载无聊Chat APP',
+      content: `请复制链接到浏览器打开：\n${url}\n密码：${password}`,
+      confirmText: '复制链接',
+      cancelText: '复制密码',
+      success: (res) => {
+        const copyText = res.confirm ? url : password;
+        wx.setClipboardData({
+          data: copyText,
+          success: () => {
+            wx.showToast({ title: res.confirm ? '链接已复制' : '密码已复制', icon: 'none' });
+          }
+        });
+      }
+    });
+  },
+
+  // 复制完整下载信息（链接+密码）
+  onCopyDownloadAll() {
+    const { url, password } = this.data.appDownload;
+    wx.setClipboardData({
+      data: `无聊Chat APP 下载\n链接：${url}\n密码：${password}`,
+      success: () => {
+        wx.showToast({ title: '已复制完整信息', icon: 'none' });
       }
     });
   }

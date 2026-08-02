@@ -69,3 +69,33 @@
 .logout-btn:active {
   opacity: 0.7;
 }
+
+/* APP 下载入口 */
+.menu-item--link {
+  cursor: pointer;
+}
+
+.menu-item--link:active {
+  background: #f7f7f7;
+}
+
+.app-download {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-download__title {
+  font-size: 30rpx;
+  color: #07c160;
+}
+
+.app-download__sub {
+  font-size: 24rpx;
+  margin-top: 6rpx;
+}
+
+.arrow {
+  color: #c8c8c8;
+  font-size: 40rpx;
+  line-height: 1;
+}
