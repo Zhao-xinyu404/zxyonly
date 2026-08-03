@@ -4,15 +4,15 @@
     <view class="chat-item" wx:for="{{friends}}" wx:key="username"
           data-username="{{item.username}}" data-nickname="{{item.nickname}}"
           bindtap="onTapFriend">
-      <view class="avatar" style="background: {{item.avatarColor || '#07c160'}}">
-        {{(item.nickname || item.username)[0]}}
+      <view class="avatar" style="background: {{item.avatarBg}}">
+        {{item.avatarText}}
       </view>
       <view class="info">
-        <view class="name">{{item.nickname || item.username}}</view>
-        <view class="bio text-muted">{{item.bio || '这个人很懒'}}</view>
+        <view class="name">{{item.displayName}}</view>
+        <view class="bio text-muted">{{item.displayBio}}</view>
       </view>
-      <view class="badge" wx:if="{{unreadMap[item.username] > 0}}">
-        {{unreadMap[item.username]}}
+      <view class="badge" wx:if="{{item.unreadCount > 0}}">
+        {{item.unreadCount}}
       </view>
     </view>
   </block>

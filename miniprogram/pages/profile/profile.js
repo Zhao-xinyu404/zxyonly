@@ -4,6 +4,11 @@ const app = getApp();
 Page({
   data: {
     user: null,
+    displayAvatar: '',
+    displayName: '',
+    displayEmail: '',
+    displayBio: '',
+    displayCreatedAt: '',
     // APP 下载地址（蓝奏云）
     appDownload: {
       url: 'https://wwats.lanzouu.com/b01eun0h0h',
@@ -13,7 +18,16 @@ Page({
 
   onShow() {
     if (!app.checkLogin()) return;
-    this.setData({ user: app.globalData.user });
+    const user = app.globalData.user;
+    // 预处理 WXML 中无法表达的字段
+    this.setData({
+      user: user,
+      displayAvatar: ((user.nickname || user.username) + '').charAt(0),
+      displayName: user.nickname || user.username,
+      displayEmail: user.email || '未设置',
+      displayBio: user.bio || '这个人很懒',
+      displayCreatedAt: user.createdAt || '未知'
+    });
   },
 
   onLogout() {

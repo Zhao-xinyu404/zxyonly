@@ -5,7 +5,7 @@
     <view class="tab {{currentPlaylistIndex === index ? 'active' : ''}}"
           wx:for="{{playlists}}" wx:key="id"
           data-index="{{index}}" bindtap="selectPlaylist">
-      <view class="tab-cover" style="background: {{item.coverColor || '#07c160'}}">
+      <view class="tab-cover" style="background: {{item.coverBg}}">
         <text class="tab-name">{{item.name}}</text>
       </view>
     </view>

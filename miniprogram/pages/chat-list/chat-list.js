@@ -26,13 +26,24 @@ Page({
         api.getUnread(user.username)
       ]);
       if (friendRes.success) {
-        // 按 nickname 排序
+        // 按 nickname 排序，并预处理 WXML 中无法直接表达的字段
         const friends = (friendRes.friends || []).sort((a, b) =>
           (a.nickname || a.username).localeCompare(b.nickname || b.username)
-        );
+        ).map(f => ({
+          ...f,
+          avatarBg: f.avatarColor || '#07c160',
+          avatarText: ((f.nickname || f.username) + '').charAt(0),
+          displayName: f.nickname || f.username,
+          displayBio: f.bio || '这个人很懒'
+        }));
+        const unreadMap = unreadRes.success ? unreadRes.perConversation : {};
+        // 计算每个好友的未读数
+        friends.forEach(f => {
+          f.unreadCount = unreadMap[f.username] || 0;
+        });
         this.setData({
           friends,
-          unreadMap: unreadRes.success ? unreadRes.perConversation : {},
+          unreadMap,
           loading: false
         });
       }
