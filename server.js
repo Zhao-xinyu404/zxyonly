@@ -952,9 +952,14 @@ function send(res, code, obj) {
 }
 
 /* ============ 路由 ============ */
-const server = http.createServer(async (req, res) => {
-  if (req.method === 'OPTIONS') return send(res, 200, { ok: true });
+const USE_HTTPS = process.env.USE_HTTPS === '1';
+const serverOpts = USE_HTTPS ? {
+  key: fs.existsSync('/tmp/key.pem') ? fs.readFileSync('/tmp/key.pem') : null,
+  cert: fs.existsSync('/tmp/cert.pem') ? fs.readFileSync('/tmp/cert.pem') : null
+} : {};
 
+const createHandler = async (req, res) => {
+  if (req.method === 'OPTIONS') return send(res, 200, { ok: true });
   const url = req.url.split('?')[0];
 
   /* ====== 健康检查 ====== */
@@ -2072,7 +2077,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   send(res, 404, { error: 'Not found', url });
-});
+};
+
+const server = (USE_HTTPS && serverOpts.key)
+  ? https.createServer(serverOpts, createHandler)
+  : http.createServer(createHandler);
 
 const PORT = process.env.PORT || 3000;
 initDefaultData().then(() => {
