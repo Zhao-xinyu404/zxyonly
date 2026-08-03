@@ -26,7 +26,7 @@ Page({
         const playlists = res.playlists.filter(p => p.songs && p.songs.length > 0)
           .map(p => ({
             ...p,
-            coverBg: p.coverColor || '#07c160'
+            coverStyle: 'background:' + (p.coverColor || '#07c160')
           }));
         this.setData({ playlists });
         if (playlists.length > 0 && !this.data.currentPlaylist) {

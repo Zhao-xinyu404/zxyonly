@@ -4,7 +4,7 @@
     <view class="chat-item" wx:for="{{friends}}" wx:key="username"
           data-username="{{item.username}}" data-nickname="{{item.nickname}}"
           bindtap="onTapFriend">
-      <view class="avatar" style="background: {{item.avatarBg}}">
+      <view class="avatar" style="{{item.avatarStyle}}">
         {{item.avatarText}}
       </view>
       <view class="info">

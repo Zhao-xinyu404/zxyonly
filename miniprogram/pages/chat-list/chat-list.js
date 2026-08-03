@@ -31,7 +31,7 @@ Page({
           (a.nickname || a.username).localeCompare(b.nickname || b.username)
         ).map(f => ({
           ...f,
-          avatarBg: f.avatarColor || '#07c160',
+          avatarStyle: 'background:' + (f.avatarColor || '#07c160'),
           avatarText: ((f.nickname || f.username) + '').charAt(0),
           displayName: f.nickname || f.username,
           displayBio: f.bio || '这个人很懒'
