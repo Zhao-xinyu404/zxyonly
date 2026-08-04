@@ -5,6 +5,8 @@ App({
   globalData: {
     // 后端地址（部署后改为你的 HTTPS 域名）
     apiBase: 'https://wuliao-chat.onrender.com',
+    // 音频代理地址（流量大户放到无流量限制的服务器）
+    audioProxyBase: 'https://你的域名.com',
     // 当前登录用户
     user: null,
     // 后台音频管理器

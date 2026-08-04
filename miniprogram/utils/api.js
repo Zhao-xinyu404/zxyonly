@@ -70,7 +70,8 @@ const api = {
   // 获取音频代理URL（HTTP音频源通过HTTPS代理播放）
   getAudioProxyUrl(originalUrl) {
     const app = getApp();
-    return app.globalData.apiBase + '/api/audio/proxy/' + encodeURIComponent(originalUrl);
+    const base = app.globalData.audioProxyBase || app.globalData.apiBase;
+    return base + '/proxy?url=' + encodeURIComponent(originalUrl);
   }
 };
 
